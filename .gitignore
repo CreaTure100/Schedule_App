@@ -1,32 +1,7 @@
-# Данные приложения
-schedule.json
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-dist/
-*.egg-info/
-.eggs/
-
-# Виртуальные окружения
-venv/
 .venv/
-env/
-ENV/
-
-# IDE
+venv/
+__pycache__/
+*.pyc
 .idea/
-.vscode/
-*.swp
-*.swo
-.DS_Store
-
-# Логи и прочее
-*.log
-.coverage
 .pytest_cache/
-.mypy_cache/
+.env
