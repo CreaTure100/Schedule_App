@@ -1,52 +1,58 @@
 """Точка входа приложения «Расписание занятий»."""
 
+from collections.abc import Iterable
 from datetime import date
 
+from models import DAYS, Lesson, Schedule
 from schedule import (
-    DAYS, add_lesson, delete_lesson, find_lessons,
+    add_lesson, delete_lesson, find_lessons,
     filter_lessons_by_day, sort_lessons_by_time, get_day_status,
 )
 from storage import load_schedule, save_schedule
 from utils import input_int, input_nonempty
 
 
-def show_schedule(schedule: list[dict]) -> None:
-    """Вывести расписание в виде таблицы."""
+def show_schedule(lessons: Iterable[Lesson]) -> None:
+    """Вывести занятия в виде нумерованной таблицы."""
+    schedule = Schedule(lessons)
     if not schedule:
         print("\nРасписание пусто.\n")
         return
     print("\n===== РАСПИСАНИЕ =====")
-    for i, lesson in enumerate(schedule, 1):
-        print(f"{i}. {lesson['day']} | {lesson['time']} | "
-              f"{lesson['subject']} | {lesson['teacher']} | ауд. {lesson['room']}")
+    print(schedule)
     print()
+
+
+def choose_day() -> str:
+    """Показать список дней недели и вернуть выбранный пользователем."""
+    print("\nДни недели:")
+    for i, d in enumerate(DAYS, 1):
+        print(f"  {i}. {d}")
+    return DAYS[input_int("Выберите номер дня: ", 1, len(DAYS)) - 1]
 
 
 def show_day_status() -> None:
     """Показать статус выбранного дня."""
-    print("\nДни недели:")
-    for i, d in enumerate(DAYS, 1):
-        print(f"  {i}. {d}")
-    idx = input_int("Выберите номер дня: ", 1, len(DAYS)) - 1
-    print(get_day_status(DAYS[idx], date.today()), "\n")
+    print(get_day_status(choose_day(), date.today()), "\n")
 
 
-def handle_add(schedule: list[dict]) -> None:
+def handle_add(schedule: Schedule) -> None:
     """Добавить занятие через меню."""
-    print("\nДни недели:")
-    for i, d in enumerate(DAYS, 1):
-        print(f"  {i}. {d}")
-    idx = input_int("Выберите номер дня: ", 1, len(DAYS)) - 1
+    day = choose_day()
     time = input_nonempty("Время (например, 10:00): ")
     subject = input_nonempty("Предмет: ")
     teacher = input_nonempty("Преподаватель: ")
     room = input_nonempty("Аудитория: ")
-    add_lesson(schedule, DAYS[idx], time, subject, teacher, room)
+    try:
+        add_lesson(schedule, day, time, subject, teacher, room)
+    except ValueError as exc:
+        print(f"Ошибка: {exc}\n")
+        return
     save_schedule(schedule)
     print("Занятие добавлено.\n")
 
 
-def handle_delete(schedule: list[dict]) -> None:
+def handle_delete(schedule: Schedule) -> None:
     """Удалить занятие через меню."""
     show_schedule(schedule)
     if not schedule:
@@ -54,28 +60,23 @@ def handle_delete(schedule: list[dict]) -> None:
     idx = input_int("Введите номер занятия для удаления: ",
                     1, len(schedule)) - 1
     removed = delete_lesson(schedule, idx)
-    if removed:
+    if removed is not None:
         save_schedule(schedule)
-        print(f"Удалено: {removed['subject']}\n")
+        print(f"Удалено: {removed.subject}\n")
 
 
-def handle_find(schedule: list[dict]) -> None:
+def handle_find(schedule: Schedule) -> None:
     """Найти занятия по подстроке."""
     query = input_nonempty("Что искать в названии предмета: ")
-    found = find_lessons(schedule, query)
-    show_schedule(found)
+    show_schedule(find_lessons(schedule, query))
 
 
-def handle_filter_by_day(schedule: list[dict]) -> None:
+def handle_filter_by_day(schedule: Schedule) -> None:
     """Показать занятия на выбранный день."""
-    print("\nДни недели:")
-    for i, d in enumerate(DAYS, 1):
-        print(f"  {i}. {d}")
-    idx = input_int("Выберите номер дня: ", 1, len(DAYS)) - 1
-    show_schedule(filter_lessons_by_day(schedule, DAYS[idx]))
+    show_schedule(filter_lessons_by_day(schedule, choose_day()))
 
 
-def handle_sort(schedule: list[dict]) -> None:
+def handle_sort(schedule: Schedule) -> None:
     """Показать занятия, отсортированные по времени."""
     show_schedule(sort_lessons_by_time(schedule))
 
