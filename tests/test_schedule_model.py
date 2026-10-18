@@ -101,3 +101,42 @@ def test_add_from_dict_bad_data_raises():
 
 def test_schedule_keeps_lesson_type(sample_schedule):
     assert all(isinstance(item, Lesson) for item in sample_schedule)
+
+
+def test_find_by_id_is_one_based(sample_schedule):
+    assert sample_schedule.find_lesson_by_id(1) is sample_schedule[0]
+    assert sample_schedule.find_lesson_by_id(3) is sample_schedule[2]
+    assert sample_schedule.find_teacher_by_id(2) == Teacher("Сидоров С.С.")
+    assert sample_schedule.find_room_by_id(1) is sample_schedule[0].room
+
+
+@pytest.mark.parametrize("bad_id", [0, -1, 4, 100])
+def test_find_by_bad_id_returns_none(sample_schedule, bad_id):
+    assert sample_schedule.find_lesson_by_id(bad_id) is None
+    assert sample_schedule.find_teacher_by_id(bad_id) is None
+    assert sample_schedule.find_room_by_id(bad_id) is None
+
+
+def test_ids_of_objects(sample_schedule):
+    assert sample_schedule.lesson_id(sample_schedule[2]) == 3
+    assert sample_schedule.teacher_id(sample_schedule[2].teacher) == 2
+    assert sample_schedule.room_id(sample_schedule[0].room) == 1
+
+
+def test_id_of_unknown_object_raises(sample_schedule, lesson):
+    with pytest.raises(ValueError):
+        sample_schedule.lesson_id(lesson)
+    with pytest.raises(ValueError):
+        sample_schedule.teacher_id(Teacher("Никто"))
+    with pytest.raises(ValueError):
+        sample_schedule.room_id(Room("999"))
+
+
+def test_lessons_of_teacher_and_in_room(sample_schedule):
+    ivanov = sample_schedule.find_teacher_by_id(1)
+    assert [x.subject for x in sample_schedule.lessons_of_teacher(ivanov)] \
+        == ["Математика", "Алгебра"]
+    room = sample_schedule.find_room_by_id(2)
+    assert [x.subject for x in sample_schedule.lessons_in_room(room)] \
+        == ["Химия"]
+    assert sample_schedule.lessons_of_teacher(Teacher("Никто")) == []

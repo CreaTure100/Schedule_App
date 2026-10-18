@@ -1,11 +1,13 @@
 """Класс «Расписание» — коллекция занятий."""
 
 from collections.abc import Iterable, Iterator
-from typing import Any
+from typing import Any, TypeVar
 
 from models.lesson import Lesson
 from models.room import Room
 from models.teacher import Teacher
+
+T = TypeVar("T")
 
 
 class Schedule:
@@ -13,6 +15,11 @@ class Schedule:
 
     Следит за тем, чтобы одинаковые преподаватели и аудитории были
     одним и тем же объектом (см. get_teacher и get_room).
+
+    Идентификатор (ID) занятия, преподавателя или аудитории — их номер
+    в соответствующем списке, начиная с 1 (так же занятия нумеруются в
+    консольном меню). ID не хранится в JSON и может измениться после
+    удаления занятий.
     """
 
     def __init__(self, lessons: Iterable[Lesson] | None = None) -> None:
@@ -58,6 +65,55 @@ class Schedule:
             if lesson.room.matches(number):
                 return lesson.room
         return Room(number)
+
+    @staticmethod
+    def _find_by_id(items: list[T], item_id: int) -> T | None:
+        """Элемент списка по ID (номер с 1) или None, если ID нет."""
+        if 1 <= item_id <= len(items):
+            return items[item_id - 1]
+        return None
+
+    def find_lesson_by_id(self, lesson_id: int) -> Lesson | None:
+        """Занятие по ID (номер в расписании с 1) или None."""
+        return self._find_by_id(self._lessons, lesson_id)
+
+    def find_teacher_by_id(self, teacher_id: int) -> Teacher | None:
+        """Преподаватель по ID (номер в списке teachers с 1) или None."""
+        return self._find_by_id(self.teachers, teacher_id)
+
+    def find_room_by_id(self, room_id: int) -> Room | None:
+        """Аудитория по ID (номер в списке rooms с 1) или None."""
+        return self._find_by_id(self.rooms, room_id)
+
+    def lesson_id(self, lesson: Lesson) -> int:
+        """ID занятия из этого расписания (ValueError, если его нет)."""
+        for number, item in enumerate(self._lessons, 1):
+            if item is lesson:
+                return number
+        raise ValueError("Занятие не входит в это расписание.")
+
+    def teacher_id(self, teacher: Teacher) -> int:
+        """ID преподавателя (ValueError, если он не ведёт занятий)."""
+        try:
+            return self.teachers.index(teacher) + 1
+        except ValueError:
+            raise ValueError(
+                f"Преподаватель «{teacher}» не найден.") from None
+
+    def room_id(self, room: Room) -> int:
+        """ID аудитории (ValueError, если в ней нет занятий)."""
+        try:
+            return self.rooms.index(room) + 1
+        except ValueError:
+            raise ValueError(f"Аудитория «{room}» не найдена.") from None
+
+    def lessons_of_teacher(self, teacher: Teacher) -> list[Lesson]:
+        """Занятия, которые ведёт преподаватель (в порядке расписания)."""
+        return [item for item in self._lessons if item.teacher == teacher]
+
+    def lessons_in_room(self, room: Room) -> list[Lesson]:
+        """Занятия, проходящие в аудитории (в порядке расписания)."""
+        return [item for item in self._lessons if item.room == room]
 
     def add_from_dict(self, data: dict[str, Any]) -> Lesson:
         """Создать занятие из словаря ПР2, восстановив ссылки, и добавить."""
