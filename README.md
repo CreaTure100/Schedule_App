@@ -3,7 +3,7 @@
 ## Назначение
 
 Приложение предназначено для хранения, просмотра и редактирования расписания учебных занятий.
-Консольная версия приложения (ПР1–ПР3) дополнена веб-интерфейсом на Django (ПР5).
+Консольная версия приложения (ПР1–ПР3) дополнена веб-интерфейсом на Django (ПР5), страницы которого строятся с помощью системы шаблонов Django (ПР6).
 
 Приложение позволяет:
 
@@ -21,8 +21,9 @@
 
 * Python 3.10+;
 * Django 5.2 – веб-фреймворк;
-* HTML – разметка веб-страниц;
-* CSS и Bootstrap 5.3 (подключён через CDN) – оформление страниц;
+* HTML и система шаблонов Django (наследование, `include`, фильтры) – разметка веб-страниц;
+* CSS, JavaScript и Bootstrap 5.3 (подключён через CDN) – оформление страниц;
+* статические файлы Django (`{% static %}`) – собственный CSS, JS и логотип;
 * pytest – автоматизированные тесты;
 * flake8 – проверка качества кода.
 
@@ -127,15 +128,17 @@
 ## Страницы веб-интерфейса
 
 * `/` – главная страница: сводка и навигация (view-функция `index()`);
-* `/lessons/` – список занятий (view-функция `lesson_list()`);
+* `/lessons/` – список занятий, сгруппированный по дням недели Понедельник–Суббота; внутри дня занятия идут по времени начала (view-функция `lesson_list()`);
 * `/lessons/<int:lesson_id>/` – страница занятия (view-функция `lesson_detail()`);
 * `/teachers/` – список преподавателей (view-функция `teacher_list()`);
 * `/teachers/<int:teacher_id>/` – страница преподавателя и его занятия (view-функция `teacher_detail()`);
 * `/rooms/` – список аудиторий (view-функция `room_list()`);
 * `/rooms/<int:room_id>/` – страница аудитории и занятия в ней (view-функция `room_detail()`).
 
-Если адрес не соответствует ни одному маршруту, обработчик `handler404` (`page_not_found()`) возвращает страницу со статусом 404.
-Если объект с указанным идентификатором не найден, view-функция сама возвращает страницу-сообщение со статусом 404.
+Если адрес не соответствует ни одному маршруту, обработчик `handler404` (`page_not_found()`) отображает шаблон `homepage/not_found.html` со статусом 404.
+Если объект с указанным идентификатором не найден, view-функция передаёт в шаблон `None` и возвращает `render(..., status=404)`: шаблон страницы объекта через `{% if %}` показывает сообщение «не найден».
+
+Все страницы наследуют общий шаблон `templates/base.html`; ссылки в них формируются тегом `{% url %}` по именам маршрутов (`homepage:index`, `lessons:list`, `lessons:detail`, `teachers:list`, `teachers:detail`, `rooms:list`, `rooms:detail`).
 
 ## Основные операции
 
@@ -203,31 +206,61 @@ lesson_schedule/
 │   ├── asgi.py
 │   └── wsgi.py
 │
+├── templates/
+│   ├── base.html
+│   └── includes/
+│       └── navigation.html
+│
 ├── homepage/
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
-│   ├── migrations/
 │   ├── models.py
 │   ├── tests.py
 │   ├── urls.py
-│   └── views.py
+│   ├── views.py
+│   ├── static/homepage/
+│   │   ├── css/style.css
+│   │   ├── js/main.js
+│   │   └── img/logo.png
+│   └── templates/homepage/
+│       ├── index.html
+│       ├── not_found.html
+│       └── includes/section_card.html
 │
 ├── lessons/
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
-│   ├── migrations/
 │   ├── models.py
+│   ├── presenters.py
 │   ├── tests.py
 │   ├── urls.py
-│   └── views.py
+│   ├── views.py
+│   └── templates/lessons/
+│       ├── lesson_list.html
+│       ├── lesson_detail.html
+│       └── includes/
+│           ├── lesson_card.html
+│           └── lesson_status.html
 │
 ├── teachers/
-│   └── (те же файлы, что в lessons/)
+│   ├── (те же .py-файлы, что в lessons/, включая presenters.py)
+│   └── templates/teachers/
+│       ├── teacher_list.html
+│       ├── teacher_detail.html
+│       └── includes/
+│           ├── teacher_card.html
+│           └── teacher_status.html
 │
 ├── rooms/
-│   └── (те же файлы, что в lessons/)
+│   ├── (те же .py-файлы, что в lessons/, включая presenters.py)
+│   └── templates/rooms/
+│       ├── room_list.html
+│       ├── room_detail.html
+│       └── includes/
+│           ├── room_card.html
+│           └── room_status.html
 │
 ├── models/
 │   ├── __init__.py
@@ -274,16 +307,20 @@ lesson_schedule/
 
 Django-приложение, отвечающее за главную страницу:
 
-* `views.py` – функция `page()` (общий HTML-каркас), `not_found()` и `page_not_found()` (страница 404), view-функция `index()`;
-* `urls.py` – маршрут главной страницы.
+* `views.py` – view-функция `index()` и обработчик 404 `page_not_found()`; HTML в файле больше нет, обе функции вызывают `render()`;
+* `urls.py` – маршрут главной страницы;
+* `templates/homepage/` – шаблоны главной страницы и страницы 404, включаемый шаблон карточки раздела;
+* `static/homepage/` – общие статические файлы проекта: `css/style.css`, `js/main.js`, `img/logo.png`.
 
-Функция `page()` размещена здесь, потому что главная страница задаёт общий вид всех остальных страниц – она точка входа в проект. Остальные приложения импортируют её.
+Функция `page()` из ПР5 удалена: общий каркас страниц теперь находится в `templates/base.html`.
 
 ### `lessons/`
 
 Django-приложение, отвечающее за занятия:
 
-* `views.py` – view-функции `lesson_list()` и `lesson_detail()`, вспомогательная функция `lesson_list_group()` (список занятий, используется также в `teachers` и `rooms`);
+* `views.py` – view-функции `lesson_list()` и `lesson_detail()`;
+* `presenters.py` – подготовка данных для шаблонов (без HTML): `LessonItem`, `DayGroup`, `build_lesson_items()`, `build_day_groups()` (группировка по дням с помощью `filter_lessons_by_day()` и `sort_lessons_by_time()` из ПР3), `today_name()`; используется также в `homepage`, `teachers` и `rooms`;
+* `templates/lessons/` – шаблоны списка и страницы занятия, включаемые шаблоны `lesson_card.html` (карточка) и `lesson_status.html` (бейдж дня, подключается в списках, на страницах занятия, преподавателя и аудитории);
 * `urls.py` – маршруты приложения;
 * `models.py` – Django-модели (заполняется в следующих работах).
 
@@ -292,6 +329,8 @@ Django-приложение, отвечающее за занятия:
 Django-приложение, отвечающее за преподавателей:
 
 * `views.py` – view-функции `teacher_list()` и `teacher_detail()`;
+* `presenters.py` – `TeacherItem` и функции его построения;
+* `templates/teachers/` – шаблоны списка и страницы преподавателя, включаемые шаблоны `teacher_card.html` (карточка) и `teacher_status.html`;
 * `urls.py` – маршруты приложения;
 * `models.py` – Django-модели (заполняется в следующих работах).
 
@@ -300,10 +339,22 @@ Django-приложение, отвечающее за преподавател�
 Django-приложение, отвечающее за аудитории:
 
 * `views.py` – view-функции `room_list()` и `room_detail()`;
+* `presenters.py` – `RoomItem` и функции его построения;
+* `templates/rooms/` – шаблоны списка и страницы аудитории, включаемые шаблоны `room_card.html` (карточка) и `room_status.html`;
 * `urls.py` – маршруты приложения;
 * `models.py` – Django-модели (заполняется в следующих работах).
 
 Отдельное приложение для пользователей не создавалось: в проекте нет пользователей, а для будущей авторизации Django предоставляет встроенную модель `User` из `django.contrib.auth`.
+
+### `templates/` и шаблоны приложений
+
+* `templates/base.html` – базовый шаблон: `DOCTYPE`, Bootstrap 5.3, собственный CSS, шапка с логотипом, подключение навигации, блоки `title` и `content`, подвал, скрипты;
+* `templates/includes/navigation.html` – меню; ссылки формируются через `{% url %}`, активный раздел определяется по пространству имён (`request.resolver_match.namespace`);
+* шаблоны страниц наследуют `base.html` через `{% extends %}` и переопределяют блоки;
+* для коллекций используются `{% for %}` с `{% empty %}`, для состояний – `{% if %}`;
+* фильтры (`length`, `default`, `truncatechars`, `upper`, `date`) отвечают только за форматирование вывода, а не за бизнес-логику: данные готовятся во view и `presenters.py`.
+
+Каталог шаблонов проекта подключён в `settings.py`: `TEMPLATES["DIRS"] = [BASE_DIR / "templates"]`; шаблоны приложений находятся автоматически (`APP_DIRS = True`).
 
 ### `models/`
 
@@ -364,7 +415,15 @@ http://127.0.0.1:8000/
 python main.py
 ```
 
-В `settings.py` для проверки страницы 404 установлено `DEBUG = False` и `ALLOWED_HOSTS = ["localhost", "127.0.0.1"]`. При `DEBUG = False` Django не показывает трассировку ошибок и не отдаёт статические файлы, поэтому для разработки следует вернуть `DEBUG = True`.
+В `settings.py` по умолчанию `DEBUG = False` (так видна своя страница 404) и `ALLOWED_HOSTS = ["localhost", "127.0.0.1"]`. При `DEBUG = False` Django сам не отдаёт статические файлы, поэтому в `roomly/urls.py` добавлен маршрут `static/<path:path>` (`django.contrib.staticfiles.views.serve` с `insecure=True`). Благодаря ему CSS, JavaScript и логотип загружаются при обычном `python manage.py runserver`. Для реального развёртывания статику должен отдавать веб-сервер после `collectstatic`.
+
+Отладку можно включить переменной окружения `ROOMLY_DEBUG=1` (тогда вместо своей страницы 404 для неизвестных адресов Django показывает отладочную).
+
+Проверка подключения статики:
+
+```text
+python manage.py findstatic homepage/img/logo.png
+```
 
 ## Тестирование
 
@@ -413,6 +472,15 @@ git status
 
 ## Текущее состояние и план развития
 
+Реализовано (ПР6):
+
+* система шаблонов Django: базовый шаблон `base.html`, наследование (`{% extends %}`, `{% block %}`), включаемые шаблоны (`{% include %}`);
+* передача данных во view через контекст, `render()`, цикл `{% for %}` с `{% empty %}`, условия `{% if %}`;
+* ссылки через `{% url %}` с пространствами имён, фильтры шаблонов;
+* статические файлы: собственный CSS, JavaScript, логотип;
+* функция `page()` и HTML-строки в `views.py` удалены;
+* статус 404 для несуществующих объектов задаётся в `render(..., status=404)`.
+
 Реализовано (ПР5):
 
 * Django-проект и четыре Django-приложения (`homepage`, `lessons`, `teachers`, `rooms`);
@@ -427,7 +495,6 @@ git status
 Планируется:
 
 * перенос сущностей `Lesson`, `Teacher` и `Room` в Django ORM и подключение базы данных (SQLite) вместо JSON;
-* переход на шаблоны (`templates/`) и отказ от функции `page()`;
 * формы добавления и удаления занятий;
 * использование отложенной логики ПР3 (`add_lesson()`, `delete_lesson()`, поиск, фильтрация по дню, сортировка);
 * фильтрация по преподавателю;
