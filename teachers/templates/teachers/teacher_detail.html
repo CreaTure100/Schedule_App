@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}{% if teacher %}{{ teacher.name }}{% else %}Преподаватель не найден{% endif %} – Roomly{% endblock %}
+
+{% block content %}
+{% if teacher %}
+  <div class="card mb-4 lesson-detail">
+    <div class="card-body">
+      <h1 class="card-title page-title">{{ teacher.name }}</h1>
+      <p>{% include "teachers/includes/teacher_status.html" %}</p>
+      <dl class="detail-list">
+        <dt>Фамилия</dt>
+        <dd>{{ teacher.surname|upper }}</dd>
+        <dt>Занятий в расписании</dt>
+        <dd>{{ lessons|length }}</dd>
+      </dl>
+      <a class="btn btn-outline-secondary" href="{% url 'teachers:list' %}">← Ко всем преподавателям</a>
+    </div>
+  </div>
+
+  <h2 class="section-title">Занятия преподавателя</h2>
+  <div class="list-group lesson-list">
+    {% for lesson in lessons %}
+      {% include "lessons/includes/lesson_card.html" %}
+    {% empty %}
+      <div class="list-group-item empty-state">Занятий нет.</div>
+    {% endfor %}
+  </div>
+{% else %}
+  <h1 class="not-found__code">404</h1>
+  <p class="lead">Преподаватель №{{ teacher_id }} не найден.</p>
+  <a class="btn btn-roomly" href="{% url 'teachers:list' %}">Ко всем преподавателям</a>
+{% endif %}
+{% endblock %}

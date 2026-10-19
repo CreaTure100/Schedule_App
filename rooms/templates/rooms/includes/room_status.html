@@ -1,0 +1,6 @@
+{# Занятость аудитории сегодня. Ожидает переменную room. #}
+{% if room.today_count %}
+  <span class="badge booking-status booking-status--busy">Сегодня занята: {{ room.today_count }}</span>
+{% else %}
+  <span class="badge booking-status booking-status--free">Сегодня свободна</span>
+{% endif %}

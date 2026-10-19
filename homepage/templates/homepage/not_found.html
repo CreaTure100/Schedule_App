@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}Страница не найдена – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="not-found__code">404</h1>
+<p class="lead">Такой страницы не существует.</p>
+<a class="btn btn-roomly" href="{% url 'homepage:index' %}">На главную</a>
+{% endblock %}

@@ -1,0 +1,9 @@
+{# Карточка преподавателя в списке. Ожидает переменную teacher (TeacherItem). #}
+<a class="list-group-item list-group-item-action person-card"
+   href="{% url 'teachers:detail' teacher.id %}">
+  <span>
+    <strong>{{ teacher.name|default:"Без имени" }}</strong><br>
+    <small class="text-secondary">Занятий в расписании: {{ teacher.lessons_count }}</small>
+  </span>
+  {% include "teachers/includes/teacher_status.html" %}
+</a>

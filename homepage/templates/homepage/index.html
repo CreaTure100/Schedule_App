@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Главная – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Расписание занятий</h1>
+<p class="page-subtitle">
+  Сегодня {{ today|date:"l, j E Y" }}.
+  {% if has_data %}
+    <span class="badge bg-success">Данные загружены</span>
+  {% else %}
+    <span class="badge bg-danger">Расписание пусто</span>
+  {% endif %}
+</p>
+
+<div class="row g-3 mb-5">
+  {% include "homepage/includes/section_card.html" with title="Занятия" count=lessons_count route="lessons:list" %}
+  {% include "homepage/includes/section_card.html" with title="Преподаватели" count=teachers_count route="teachers:list" %}
+  {% include "homepage/includes/section_card.html" with title="Аудитории" count=rooms_count route="rooms:list" %}
+</div>
+
+<h2 class="section-title">Занятия сегодня</h2>
+<div class="list-group lesson-list">
+  {% for lesson in today_lessons %}
+    {% include "lessons/includes/lesson_card.html" with hide_day=True %}
+  {% empty %}
+    <div class="list-group-item empty-state">
+      Сегодня занятий нет.
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

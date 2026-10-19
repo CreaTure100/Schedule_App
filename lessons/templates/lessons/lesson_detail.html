@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}{% if lesson %}{{ lesson.subject }}{% else %}Занятие не найдено{% endif %} – Roomly{% endblock %}
+
+{% block content %}
+{% if lesson %}
+  <article class="card lesson-detail">
+    <div class="card-body">
+      <h1 class="card-title page-title">{{ lesson.subject|default:"Без названия" }}</h1>
+      <p>{% include "lessons/includes/lesson_status.html" %}</p>
+      <dl class="detail-list">
+        <dt>Время начала</dt>
+        <dd>{{ lesson.time }}</dd>
+        <dt>Преподаватель</dt>
+        <dd><a href="{% url 'teachers:detail' lesson.teacher_id %}">{{ lesson.teacher }}</a></dd>
+        <dt>Аудитория</dt>
+        <dd><a href="{% url 'rooms:detail' lesson.room_id %}">ауд. {{ lesson.room }}</a></dd>
+        <dt>Статус дня</dt>
+        <dd>{{ day_status }}</dd>
+      </dl>
+      <a class="btn btn-outline-secondary" href="{% url 'lessons:list' %}">← Ко всем занятиям</a>
+    </div>
+  </article>
+{% else %}
+  <h1 class="not-found__code">404</h1>
+  <p class="lead">Занятие №{{ lesson_id }} не найдено.</p>
+  <a class="btn btn-roomly" href="{% url 'lessons:list' %}">Ко всем занятиям</a>
+{% endif %}
+{% endblock %}

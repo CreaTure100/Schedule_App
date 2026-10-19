@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Занятия – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Занятия</h1>
+<p class="page-subtitle">Всего занятий: {{ lessons|length }}</p>
+
+{% if lessons %}
+  {% for day in days %}
+    <section class="day-group{% if day.is_today %} day-group--today{% endif %}">
+      <h2 class="day-group__title">{{ day.name }}</h2>
+      <div class="list-group lesson-list">
+        {% for lesson in day.lessons %}
+          {% include "lessons/includes/lesson_card.html" with hide_day=True %}
+        {% empty %}
+          <div class="list-group-item empty-state">Занятий нет.</div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+{% else %}
+  <div class="list-group">
+    <div class="list-group-item empty-state">
+      Расписание пусто. Занятия берутся из файла data/schedule.json.
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

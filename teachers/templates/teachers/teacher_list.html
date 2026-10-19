@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Преподаватели – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Преподаватели</h1>
+<p class="page-subtitle">Всего преподавателей: {{ teachers|length }}</p>
+
+<div class="list-group">
+  {% for teacher in teachers %}
+    {% include "teachers/includes/teacher_card.html" %}
+  {% empty %}
+    <div class="list-group-item empty-state">
+      Преподавателей пока нет: в расписании нет занятий.
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

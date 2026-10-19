@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{% if room %}Аудитория {{ room.number }}{% else %}Аудитория не найдена{% endif %} – Roomly{% endblock %}
+
+{% block content %}
+{% if room %}
+  <div class="card mb-4 lesson-detail">
+    <div class="card-body">
+      <h1 class="card-title page-title">Аудитория {{ room.number }}</h1>
+      <p>{% include "rooms/includes/room_status.html" %}</p>
+      <dl class="detail-list">
+        <dt>Занятий в расписании</dt>
+        <dd>{{ lessons|length }}</dd>
+      </dl>
+      <a class="btn btn-outline-secondary" href="{% url 'rooms:list' %}">← Ко всем аудиториям</a>
+    </div>
+  </div>
+
+  <h2 class="section-title">Занятия в аудитории</h2>
+  <div class="list-group lesson-list">
+    {% for lesson in lessons %}
+      {% include "lessons/includes/lesson_card.html" %}
+    {% empty %}
+      <div class="list-group-item empty-state">Занятий нет.</div>
+    {% endfor %}
+  </div>
+{% else %}
+  <h1 class="not-found__code">404</h1>
+  <p class="lead">Аудитория №{{ room_id }} не найдена.</p>
+  <a class="btn btn-roomly" href="{% url 'rooms:list' %}">Ко всем аудиториям</a>
+{% endif %}
+{% endblock %}

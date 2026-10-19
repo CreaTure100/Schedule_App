@@ -1,0 +1,9 @@
+{# Карточка аудитории в списке. Ожидает переменную room (RoomItem). #}
+<a class="list-group-item list-group-item-action room-card"
+   href="{% url 'rooms:detail' room.id %}">
+  <span>
+    <strong>ауд. {{ room.number|default:"без номера" }}</strong><br>
+    <small class="text-secondary">Занятий в расписании: {{ room.lessons_count }}</small>
+  </span>
+  {% include "rooms/includes/room_status.html" %}
+</a>

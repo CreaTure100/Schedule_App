@@ -1,0 +1,10 @@
+{# Карточка раздела на главной. Параметры: title, count, route. #}
+<div class="col-md-4">
+  <div class="card h-100 section-card">
+    <div class="card-body">
+      <h2 class="card-title h5">{{ title }}</h2>
+      <p class="card-text">Всего: <strong>{{ count }}</strong></p>
+      <a class="btn btn-roomly" href="{% url route %}">Открыть</a>
+    </div>
+  </div>
+</div>

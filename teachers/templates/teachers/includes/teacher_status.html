@@ -1,0 +1,6 @@
+{# Состояние преподавателя на сегодня. Ожидает переменную teacher. #}
+{% if teacher.today_count %}
+  <span class="badge lesson-status lesson-status--today">Сегодня занятий: {{ teacher.today_count }}</span>
+{% else %}
+  <span class="badge lesson-status">Сегодня занятий нет</span>
+{% endif %}

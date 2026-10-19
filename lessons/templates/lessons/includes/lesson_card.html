@@ -1,0 +1,10 @@
+{# Карточка занятия в списках. Ожидает переменную lesson (LessonItem). #}
+<a class="list-group-item list-group-item-action lesson-card{% if lesson.is_today %} lesson-card--today{% endif %}"
+   href="{% url 'lessons:detail' lesson.id %}">
+  <span class="lesson-card__time">{{ lesson.time }}</span>
+  <span class="lesson-card__body">
+    <strong class="lesson-card__subject">{{ lesson.subject|default:"Без названия"|truncatechars:60 }}</strong>
+    <small class="lesson-card__meta">{{ lesson.teacher }}, ауд. {{ lesson.room }}</small>
+  </span>
+  {% include "lessons/includes/lesson_status.html" %}
+</a>

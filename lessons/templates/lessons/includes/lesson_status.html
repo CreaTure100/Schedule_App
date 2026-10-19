@@ -1,0 +1,6 @@
+{# Бейдж дня занятия. Если передан hide_day, день не повторяется (в списках по дням). #}
+{% if lesson.is_today %}
+  <span class="badge lesson-status lesson-status--today">{% if not hide_day %}{{ lesson.day }}, {% endif %}сегодня</span>
+{% elif not hide_day %}
+  <span class="badge lesson-status">{{ lesson.day }}</span>
+{% endif %}
