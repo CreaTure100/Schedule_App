@@ -1,19 +1,20 @@
 """Настройки Django-проекта roomly («Расписание занятий»)."""
 
+import os
 from pathlib import Path
 
 # Корень репозитория (там же лежат manage.py, main.py, models/, data/).
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Учебный проект: ключ можно хранить в репозитории. В реальном проекте
-# его выносят в переменную окружения.
+
 SECRET_KEY = (
     'django-insecure-bm1u6vzgcrvi7ftqqny8q02z3xcrjnu0lxi_bso8c19nf01-bl'
 )
 
-# DEBUG = False нужен, чтобы увидеть свою страницу 404 (handler404).
-# После проверки верните DEBUG = True для удобной разработки.
-DEBUG = False
+# По умолчанию DEBUG = False: так видна своя страница 404 (handler404).
+# Статика при этом отдаётся маршрутом static/ из roomly/urls.py.
+# Отладку можно включить переменной окружения ROOMLY_DEBUG=1.
+DEBUG = os.environ.get("ROOMLY_DEBUG") == "1"
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
@@ -47,7 +48,7 @@ ROOT_URLCONF = 'roomly.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / "templates"],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
