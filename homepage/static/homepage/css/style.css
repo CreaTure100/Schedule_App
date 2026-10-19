@@ -1,0 +1,297 @@
+/* Собственные стили Roomly. Подключаются после Bootstrap и дополняют его. */
+
+:root {
+  --rl-ink: #1b2b38;
+  --rl-ink-soft: #52616d;
+  --rl-teal: #0f766e;
+  --rl-teal-dark: #0b5a54;
+  --rl-teal-soft: #dff1ee;
+  --rl-amber: #d98a1f;
+  --rl-amber-soft: #fff1d6;
+  --rl-amber-text: #7a4a00;
+  --rl-paper: #f1f5f7;
+  --rl-line: #d3dce2;
+}
+
+body {
+  background: var(--rl-paper);
+  color: var(--rl-ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+a {
+  color: var(--rl-teal-dark);
+}
+
+a:focus-visible,
+.btn:focus-visible,
+.nav-link:focus-visible {
+  outline: 3px solid var(--rl-amber);
+  outline-offset: 2px;
+}
+
+/* ---------- Шапка и логотип ---------- */
+
+.site-header {
+  background: var(--rl-ink);
+  color: #fff;
+  padding: 0.9rem 0;
+}
+
+.site-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.85rem;
+  color: #fff;
+  text-decoration: none;
+}
+
+.site-header__brand:hover {
+  color: #fff;
+}
+
+.roomly-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+}
+
+.site-header__name {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+
+.site-header__tagline {
+  display: block;
+  font-size: 0.85rem;
+  color: #b9c7d1;
+}
+
+/* ---------- Навигация ---------- */
+
+.roomly-nav {
+  background: #fff;
+  border-bottom: 1px solid var(--rl-line);
+  padding: 0;
+}
+
+.roomly-nav .nav-link {
+  color: var(--rl-ink-soft);
+  font-weight: 500;
+  padding: 0.85rem 1rem;
+  border-bottom: 3px solid transparent;
+}
+
+.roomly-nav .nav-link:hover {
+  color: var(--rl-ink);
+}
+
+.roomly-nav .nav-link.active {
+  color: var(--rl-teal-dark);
+  border-bottom-color: var(--rl-teal);
+}
+
+/* ---------- Заголовки ---------- */
+
+.page-title {
+  font-size: calc(1.5rem + 1.2vw);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.5rem;
+}
+
+.page-subtitle {
+  color: var(--rl-ink-soft);
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.not-found__code {
+  font-size: 5rem;
+  font-weight: 800;
+  color: var(--rl-amber);
+  line-height: 1;
+}
+
+/* ---------- Кнопки ---------- */
+
+.btn-roomly {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: var(--rl-teal);
+  --bs-btn-border-color: var(--rl-teal);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--rl-teal-dark);
+  --bs-btn-hover-border-color: var(--rl-teal-dark);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--rl-teal-dark);
+  --bs-btn-active-border-color: var(--rl-teal-dark);
+}
+
+/* ---------- Карточки разделов на главной ---------- */
+
+.section-card {
+  border: 1px solid var(--rl-line);
+  border-top: 4px solid var(--rl-teal);
+  border-radius: 0.5rem;
+}
+
+/* ---------- Занятия ---------- */
+
+.lesson-list .list-group-item,
+.list-group-item.person-card,
+.list-group-item.room-card {
+  border-color: var(--rl-line);
+}
+
+.list-group-item.lesson-card {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  border-left: 5px solid transparent;
+  padding: 0.85rem 1rem;
+}
+
+.lesson-card--today {
+  border-left-color: var(--rl-amber);
+  background: #fffaf0;
+}
+
+.lesson-card__time {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--rl-teal-dark);
+}
+
+.lesson-card__subject,
+.lesson-card__meta {
+  display: block;
+}
+
+.lesson-card__meta {
+  color: var(--rl-ink-soft);
+}
+
+.list-group-item.person-card,
+.list-group-item.room-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.empty-state {
+  color: var(--rl-ink-soft);
+  padding: 1.25rem 1rem;
+}
+
+/* ---------- Группы занятий по дням недели ---------- */
+
+.day-group {
+  margin-bottom: 2rem;
+}
+
+.day-group__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--rl-line);
+}
+
+.day-group--today .day-group__title {
+  border-bottom-color: var(--rl-amber);
+}
+
+/* ---------- Статусы ---------- */
+
+.badge.lesson-status {
+  background: #e3e9ed;
+  color: #33424f;
+  font-weight: 500;
+}
+
+.badge.lesson-status--today {
+  background: var(--rl-amber-soft);
+  color: var(--rl-amber-text);
+  box-shadow: inset 0 0 0 1px #efc57d;
+}
+
+.badge.booking-status {
+  font-weight: 500;
+}
+
+.badge.booking-status--busy {
+  background: var(--rl-amber-soft);
+  color: var(--rl-amber-text);
+  box-shadow: inset 0 0 0 1px #efc57d;
+}
+
+.badge.booking-status--free {
+  background: var(--rl-teal-soft);
+  color: var(--rl-teal-dark);
+}
+
+/* ---------- Страницы объектов ---------- */
+
+.lesson-detail {
+  border: 1px solid var(--rl-line);
+  border-radius: 0.5rem;
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1.5rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.detail-list dt {
+  color: var(--rl-ink-soft);
+  font-weight: 500;
+}
+
+.detail-list dd {
+  margin: 0;
+}
+
+/* ---------- Подвал ---------- */
+
+.site-footer {
+  border-top: 1px solid var(--rl-line);
+  color: var(--rl-ink-soft);
+  font-size: 0.9rem;
+  padding: 1rem 0;
+}
+
+/* ---------- Узкие экраны ---------- */
+
+@media (max-width: 575.98px) {
+  .list-group-item.lesson-card {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .list-group-item.lesson-card .badge {
+    justify-self: start;
+  }
+
+  .detail-list {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+
+  .detail-list dd {
+    margin-bottom: 0.75rem;
+  }
+}
