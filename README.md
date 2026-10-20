@@ -338,6 +338,9 @@ lesson_schedule/
     └── test_main.py
 ```
 
+
+
+
 ## Назначение модулей
 
 ### `main.py`
