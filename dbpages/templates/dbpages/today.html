@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Сегодня (SQLite) – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Ещё не начавшиеся занятия сегодня</h1>
+<p class="page-subtitle">
+  Сегодня {{ day_name }}, сейчас {{ now_time }}. Запрос SELECT ... WHERE день = ? AND время &gt;= ?.
+  Найдено занятий: {{ lessons|length }}
+</p>
+
+{% include "dbpages/includes/db_error.html" %}
+{% include "dbpages/includes/lessons_table.html" with empty_text="Сегодня больше нет занятий: они закончились или день выходной." %}
+{% include "dbpages/includes/sql_box.html" %}
+{% endblock %}

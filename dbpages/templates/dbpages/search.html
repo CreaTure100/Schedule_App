@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Поиск занятий (SQLite) – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Поиск занятий</h1>
+<p class="page-subtitle">Запрос SELECT ... WHERE с параметрами «?»: укажите день недели, фамилию преподавателя или оба критерия.</p>
+
+<form class="row g-3 mb-4" method="get" action="{% url 'dbpages:search' %}">
+  <div class="col-md-4">
+    <label class="form-label" for="search-day">День недели</label>
+    <select class="form-select" id="search-day" name="day">
+      <option value="">Любой</option>
+      {% for name in days %}
+        <option value="{{ name }}"{% if name == day %} selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-5">
+    <label class="form-label" for="search-teacher">Преподаватель</label>
+    <input class="form-control" id="search-teacher" type="search" name="teacher"
+           value="{{ teacher }}" placeholder="Например, иванов">
+  </div>
+  <div class="col-md-3 d-flex align-items-end gap-2">
+    <button class="btn btn-roomly" type="submit">Найти</button>
+    <a class="btn btn-outline-secondary" href="{% url 'dbpages:search' %}">Сбросить</a>
+  </div>
+</form>
+
+{% include "dbpages/includes/db_error.html" %}
+{% if searched %}
+  <p class="page-subtitle">Найдено занятий: {{ lessons|length }}</p>
+  {% include "dbpages/includes/lessons_table.html" with empty_text="Ничего не найдено. Измените критерии поиска." %}
+{% else %}
+  <div class="list-group">
+    <div class="list-group-item empty-state">Задайте критерий и нажмите «Найти».</div>
+  </div>
+{% endif %}
+{% include "dbpages/includes/sql_box.html" %}
+{% endblock %}

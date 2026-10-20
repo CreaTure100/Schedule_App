@@ -25,6 +25,22 @@
           <a class="nav-link{% if section == 'rooms' %} active{% endif %}"
              href="{% url 'rooms:list' %}">Аудитории</a>
         </li>
+        <li class="nav-item dropdown">
+          <button class="nav-link dropdown-toggle{% if section == 'dbpages' %} active{% endif %}"
+                  type="button" data-bs-toggle="dropdown" aria-expanded="false">База данных</button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item{% if request.resolver_match.url_name == 'lessons' and section == 'dbpages' %} active{% endif %}"
+                   href="{% url 'dbpages:lessons' %}">Занятия (SQL)</a></li>
+            <li><a class="dropdown-item{% if request.resolver_match.url_name == 'teachers' and section == 'dbpages' %} active{% endif %}"
+                   href="{% url 'dbpages:teachers' %}">Преподаватели (SQL)</a></li>
+            <li><a class="dropdown-item{% if request.resolver_match.url_name == 'today' and section == 'dbpages' %} active{% endif %}"
+                   href="{% url 'dbpages:today' %}">Сегодня</a></li>
+            <li><a class="dropdown-item{% if request.resolver_match.url_name == 'search' and section == 'dbpages' %} active{% endif %}"
+                   href="{% url 'dbpages:search' %}">Поиск занятий</a></li>
+            <li><a class="dropdown-item{% if request.resolver_match.url_name == 'stats' and section == 'dbpages' %} active{% endif %}"
+                   href="{% url 'dbpages:stats' %}">Статистика</a></li>
+          </ul>
+        </li>
       </ul>
     </div>
   </div>

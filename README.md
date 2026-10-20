@@ -160,29 +160,85 @@
 * показ занятий на выбранный день;
 * сортировка занятий по времени.
 
-## Хранение данных
+## Проектирование базы данных
 
-Данные приложения хранятся в JSON-файле `data/schedule.json`.
 
-При загрузке данные из JSON преобразуются в объекты `Lesson`, `Teacher` и `Room`, собранные в `Schedule`.
-При сохранении объекты преобразуются в данные JSON.
 
-Для связи занятия с преподавателем и аудиторией в JSON используются строки: имя преподавателя и номер аудитории.
+| Сущность | Таблица | Поля | Типы | Ключи и ограничения |
+|---|---|---|---|---|
+| Преподаватель | `teachers` | `id`, `full_name`, `surname`, `email` | INTEGER, TEXT, TEXT, TEXT | PK `id`; `full_name` UNIQUE NOT NULL; `surname` NOT NULL; `email` может быть NULL |
+| Аудитория | `rooms` | `id`, `number`, `floor`, `capacity` | INTEGER, TEXT, INTEGER, INTEGER | PK `id`; `number` UNIQUE NOT NULL; `floor` и `capacity` могут быть NULL; CHECK `capacity > 0` |
+| Предмет | `subjects` | `id`, `title` | INTEGER, TEXT | PK `id`; `title` UNIQUE NOT NULL |
+| Занятие | `lessons` | `id`, `day`, `day_number`, `start_time`, `duration_hours`, `lesson_type`, `subject_id`, `teacher_id`, `room_id` | INTEGER, TEXT, INTEGER, TEXT, REAL, TEXT, INTEGER, INTEGER, INTEGER | PK `id`; FK `subject_id` → `subjects.id`, `teacher_id` → `teachers.id`, `room_id` → `rooms.id` (ON DELETE RESTRICT, ON UPDATE CASCADE); `duration_hours` DEFAULT 1.5; `lesson_type` может быть NULL; CHECK на `day`, `day_number`, `start_time`; UNIQUE (`day_number`, `start_time`, `room_id`) и (`day_number`, `start_time`, `teacher_id`) |
 
-```json
-[
-  {
-    "day": "Понедельник",
-    "time": "09:00",
-    "subject": "Математика",
-    "teacher": "Иванов И.И.",
-    "room": "301"
-  }
-]
+## Создание базы и таблиц
+
+Скрипт схемы — `sql/schema.sql` (`CREATE TABLE IF NOT EXISTS`, `NOT NULL`,
+`DEFAULT`, `FOREIGN KEY`). Файл базы создаётся командой Python, а схема
+выполняется через `executescript()` в функции `init_db()` модуля
+`db/database.py`:
+
+```text
+python -m db.database
 ```
 
-Некорректные записи при загрузке пропускаются с сообщением, остальные читаются.
-Файл создаётся автоматически при первом сохранении в консольной версии.
+```text
+База данных: .../data/roomly.sqlite
+Таблицы: lessons, rooms, subjects, teachers
+```
+
+Проверка таблиц и внешних ключей (в SQLite CLI или через
+`python -m db.check`):
+
+```sql
+SELECT name FROM sqlite_master WHERE type = 'table';
+PRAGMA foreign_key_list(lessons);
+```
+
+Ожидается четыре таблицы и три внешних ключа: `rooms (room_id)`,
+`teachers (teacher_id)`, `subjects (subject_id)`.
+
+## Модули подключения и импорта
+
+* `db/__init__.py` — пустой файл пакета;
+* `db/database.py` — `get_connection()` (включает
+  `PRAGMA foreign_keys = ON` и `sqlite3.Row`), `init_db()`;
+* `db/import_json.py` — перенос `data/schedule.json` в таблицы:
+  `executemany()` с параметрами `?` (без f-строк), одна транзакция,
+  `try / except / finally` с `commit()` и `rollback()`;
+* `db/check.py` — проверка структуры, количества записей, JOIN и запуск
+  всех запросов из `sql/queries.sql`.
+
+Запуск импорта из корня проекта:
+
+```text
+python -m db.import_json
+```
+
+## SQL-запросы (`sql/queries.sql`)
+
+В файле 21 запрос; у каждого есть комментарий `--` с назначением и
+ожидаемым результатом. Заголовок вида `-- Запрос N [ТЕГИ].` позволяет
+`db/check.py` и тестам разбирать файл.
+
+| Вид | Запросы |
+|---|---|
+| Выборка списков (`SELECT` + `ORDER BY`) | 1, 2, 3, 12 |
+| Фильтрация (`WHERE`, `AND/OR/NOT`, `BETWEEN`, `IN`, `LIKE`, `IS NULL`) | 4–9 (и 21) |
+| Соединение таблиц (`JOIN` 2, 3 и 4 таблиц) | 10, 11, 12 (и 16, 18–20) |
+| Агрегатные функции (`COUNT`, `MIN`, `MAX`, `AVG`, `SUM`) | 13, 14, 15 (и 16, 17) |
+| Группировка (`GROUP BY`, `HAVING`) | 16, 17, 18, 19, 20 |
+| `LIMIT` / `OFFSET`, подзапросы (`NOT IN`, подзапрос в `HAVING`) | 3, 20, 21 |
+
+Проверка в SQLite CLI, из корня проекта:
+
+```text
+sqlite3 data/roomly.sqlite
+sqlite> .headers on
+sqlite> .mode column
+sqlite> .read sql/queries.sql
+```
+
 
 ## Структура проекта
 
@@ -470,7 +526,20 @@ pip install -r requirements.txt
 git status
 ```
 
+## Запуск и проверка
+
+```text
+python -m db.import_json          # создать базу и загрузить данные
+python -m db.check --queries      # проверить таблицы, данные и запросы
+python manage.py runserver        # открыть http://127.0.0.1:8000/db/stats/
+pytest -v                         # тесты ПР1–ПР3 и tests/test_db.py
+python manage.py test             # тесты сайта и dbpages/tests.py
+flake8 .
+```
+
 ## Текущее состояние и план развития
+
+
 
 Реализовано (ПР6):
 

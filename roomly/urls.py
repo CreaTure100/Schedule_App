@@ -14,6 +14,7 @@ urlpatterns = [
     path("lessons/", include("lessons.urls")),
     path("teachers/", include("teachers.urls")),
     path("rooms/", include("rooms.urls")),
+    path("db/", include("dbpages.urls")),
     # Самый общий маршрут (пустой префикс) — в самом конце.
     path("", include("homepage.urls")),
 ]

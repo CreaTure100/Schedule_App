@@ -1,0 +1,31 @@
+{# Таблица занятий (JOIN). Параметр: lessons — строки sqlite3.Row. #}
+<div class="table-responsive">
+  <table class="table table-hover align-middle db-table">
+    <thead>
+      <tr>
+        <th scope="col">№</th>
+        <th scope="col">День</th>
+        <th scope="col">Время</th>
+        <th scope="col">Предмет</th>
+        <th scope="col">Преподаватель</th>
+        <th scope="col">Ауд.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in lessons %}
+        <tr>
+          <td>{{ item.id }}</td>
+          <td>{{ item.day }}</td>
+          <td class="db-table__time">{{ item.start_time }}</td>
+          <td>{{ item.subject }}{% if item.lesson_type %} <span class="badge lesson-status">{{ item.lesson_type }}</span>{% endif %}</td>
+          <td>{{ item.teacher }}</td>
+          <td>{{ item.room }}</td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="6" class="empty-state">{{ empty_text|default:"Занятий не найдено." }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

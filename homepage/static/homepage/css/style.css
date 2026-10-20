@@ -295,3 +295,46 @@ a:focus-visible,
     margin-bottom: 0.75rem;
   }
 }
+
+/* ---------- Страницы с данными из SQLite ---------- */
+
+.db-table {
+  background: #fff;
+  border: 1px solid var(--rl-line);
+}
+
+.db-table th {
+  color: var(--rl-ink-soft);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.db-table__time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--rl-teal-dark);
+}
+
+.sql-query {
+  margin-top: 1rem;
+  color: var(--rl-ink-soft);
+}
+
+.sql-query summary {
+  cursor: pointer;
+}
+
+.sql-query pre {
+  margin-top: 0.5rem;
+  padding: 0.85rem 1rem;
+  background: var(--rl-ink);
+  color: #e6eef3;
+  border-radius: 0.5rem;
+  white-space: pre-wrap;
+}
+
+.roomly-nav .dropdown-item.active,
+.roomly-nav .dropdown-item:active {
+  background: var(--rl-teal);
+  color: #fff;
+}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}Занятия (SQLite) – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Занятия из базы данных</h1>
+<p class="page-subtitle">Запрос SELECT с JOIN четырёх таблиц и ORDER BY. Всего занятий: {{ lessons|length }}</p>
+
+{% include "dbpages/includes/db_error.html" %}
+{% include "dbpages/includes/lessons_table.html" with empty_text="В базе нет занятий. Выполните python -m db.import_json." %}
+{% include "dbpages/includes/sql_box.html" %}
+{% endblock %}

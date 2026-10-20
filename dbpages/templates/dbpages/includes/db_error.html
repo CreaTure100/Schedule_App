@@ -1,0 +1,4 @@
+{# Сообщение, если база данных не создана или пуста. Параметр: db_error. #}
+{% if db_error %}
+  <div class="alert alert-warning" role="alert">{{ db_error }}</div>
+{% endif %}

@@ -1,0 +1,6 @@
+{# Текст выполненного SQL-запроса. Параметры: sql, params (необязательно). #}
+<details class="sql-query">
+  <summary>Показать SQL-запрос</summary>
+  <pre><code>{{ sql }}</code></pre>
+  {% if params %}<p class="sql-query__params">Параметры «?»: {{ params|join:", " }}</p>{% endif %}
+</details>

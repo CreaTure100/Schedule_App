@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Статистика (SQLite) – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Статистика расписания</h1>
+<p class="page-subtitle">Агрегатные функции COUNT, SUM, MIN, MAX и группировка GROUP BY.</p>
+
+{% include "dbpages/includes/db_error.html" %}
+
+{% if summary %}
+  <div class="row g-3 mb-5">
+    <div class="col-6 col-lg-3"><div class="card section-card h-100"><div class="card-body">
+      <p class="card-text mb-1">Занятий</p><strong class="h3">{{ summary.lessons_count }}</strong>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card section-card h-100"><div class="card-body">
+      <p class="card-text mb-1">Преподавателей</p><strong class="h3">{{ summary.teachers_count }}</strong>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card section-card h-100"><div class="card-body">
+      <p class="card-text mb-1">Аудиторий</p><strong class="h3">{{ summary.rooms_count }}</strong>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card section-card h-100"><div class="card-body">
+      <p class="card-text mb-1">Часов в неделю</p><strong class="h3">{{ summary.total_hours|default_if_none:0 }}</strong>
+    </div></div></div>
+  </div>
+  <p class="page-subtitle">Занятия начинаются с {{ summary.first_start|default:"—" }} и до {{ summary.last_start|default:"—" }}.</p>
+{% endif %}
+
+<h2 class="section-title">Занятия по преподавателям</h2>
+<div class="table-responsive mb-5">
+  <table class="table table-hover db-table">
+    <thead><tr><th scope="col">Преподаватель</th><th scope="col">Занятий</th><th scope="col">Часов</th></tr></thead>
+    <tbody>
+      {% for item in by_teacher %}
+        <tr><td>{{ item.teacher }}</td><td>{{ item.lessons_count }}</td><td>{{ item.hours }}</td></tr>
+      {% empty %}
+        <tr><td colspan="3" class="empty-state">Данных нет.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "dbpages/includes/sql_box.html" with sql=sql_by_teacher %}
+</div>
+
+<h2 class="section-title">Занятия по дням недели</h2>
+<div class="table-responsive mb-5">
+  <table class="table table-hover db-table">
+    <thead><tr><th scope="col">День</th><th scope="col">Занятий</th><th scope="col">Первое</th><th scope="col">Последнее</th></tr></thead>
+    <tbody>
+      {% for item in by_day %}
+        <tr><td>{{ item.day }}</td><td>{{ item.lessons_count }}</td><td>{{ item.first_start }}</td><td>{{ item.last_start }}</td></tr>
+      {% empty %}
+        <tr><td colspan="4" class="empty-state">Данных нет.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "dbpages/includes/sql_box.html" with sql=sql_by_day %}
+</div>
+
+<h2 class="section-title">Аудитории, где не меньше двух занятий (HAVING)</h2>
+<div class="table-responsive">
+  <table class="table table-hover db-table">
+    <thead><tr><th scope="col">Аудитория</th><th scope="col">Занятий</th></tr></thead>
+    <tbody>
+      {% for item in busy_rooms %}
+        <tr><td>ауд. {{ item.room }}</td><td>{{ item.lessons_count }}</td></tr>
+      {% empty %}
+        <tr><td colspan="2" class="empty-state">Таких аудиторий нет.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% include "dbpages/includes/sql_box.html" with sql=sql_busy_rooms %}
+</div>
+{% endblock %}

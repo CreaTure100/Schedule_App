@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 
+from db.database import DB_PATH
+
 # Корень репозитория (там же лежат manage.py, main.py, models/, data/).
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -31,6 +33,7 @@ INSTALLED_APPS = [
     'lessons.apps.LessonsConfig',
     'teachers.apps.TeachersConfig',
     'rooms.apps.RoomsConfig',
+    'dbpages.apps.DbpagesConfig',
 ]
 
 MIDDLEWARE = [
@@ -65,6 +68,11 @@ WSGI_APPLICATION = 'roomly.wsgi.application'
 
 # База данных нужна встроенным приложениям Django (admin, auth, sessions).
 # Данные расписания по-прежнему лежат в data/schedule.json.
+#
+# Отдельная база SQLite с данными расписания (ПР7): к ней обращаются
+# только view-функции приложения dbpages через модуль sqlite3 (без ORM).
+SQLITE_PATH = DB_PATH
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
