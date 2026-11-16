@@ -532,6 +532,7 @@ git status
 ## Запуск и проверка
 
 ```text
+python -m db.import_json --replace
 python -m db.import_json          # создать базу и загрузить данные
 python -m db.check --queries      # проверить таблицы, данные и запросы
 python manage.py runserver        # открыть http://127.0.0.1:8000/db/stats/

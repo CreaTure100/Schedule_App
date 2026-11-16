@@ -7,13 +7,13 @@ from django.utils import timezone
 from lessons.presenters import (
     build_day_groups, build_lesson_item, build_lesson_items,
 )
+from roomly.data import get_schedule
 from schedule import get_day_status
-from storage import load_schedule
 
 
 def lesson_list(request: HttpRequest) -> HttpResponse:
     """Список занятий, сгруппированных по дням недели."""
-    schedule = load_schedule()
+    schedule = get_schedule()
     context = {
         "lessons": build_lesson_items(schedule, schedule.lessons),
         "days": build_day_groups(schedule),
@@ -23,7 +23,7 @@ def lesson_list(request: HttpRequest) -> HttpResponse:
 
 def lesson_detail(request: HttpRequest, lesson_id: int) -> HttpResponse:
     """Страница одного занятия (lesson_id — номер в расписании с 1)."""
-    schedule = load_schedule()
+    schedule = get_schedule()
     lesson = schedule.find_lesson_by_id(lesson_id)
     context = {"lesson_id": lesson_id, "lesson": None}
     if lesson is not None:

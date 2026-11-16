@@ -67,10 +67,11 @@ WSGI_APPLICATION = 'roomly.wsgi.application'
 
 
 # База данных нужна встроенным приложениям Django (admin, auth, sessions).
-# Данные расписания по-прежнему лежат в data/schedule.json.
 #
-# Отдельная база SQLite с данными расписания (ПР7): к ней обращаются
-# только view-функции приложения dbpages через модуль sqlite3 (без ORM).
+# Данные расписания лежат в отдельной базе SQLite (ПР7). Страницы сайта
+# читают её через модуль sqlite3, без Django ORM: общие страницы —
+# через roomly/data.py и db/repository.py, страницы dbpages — напрямую.
+# Исходные данные для базы — data/schedule.json (python -m db.import_json).
 SQLITE_PATH = DB_PATH
 
 DATABASES = {

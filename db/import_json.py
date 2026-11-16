@@ -2,11 +2,15 @@
 
 Запуск из корня проекта:
 
-    python -m db.import_json [путь_к_json]
+    python -m db.import_json [путь_к_json] [--replace]
 
 JSON читается через storage.load_schedule(): данные проходят ту же
 проверку и нормализацию, что и в ПР3 (дни недели, формат времени).
 Повторный запуск безопасен: уже существующие строки не дублируются.
+
+Страницы сайта читают базу, а не JSON. Если расписание изменили в JSON
+(например, через консольное меню), обновите базу ключом --replace: он
+очищает таблицы и загружает данные заново (JSON — источник истины).
 """
 
 import re
@@ -22,6 +26,16 @@ DEFAULT_JSON = BASE_DIR / "data" / "schedule.json"
 
 # «Химия (лабораторная)» -> название «Химия», тип «лабораторная».
 SUBJECT_TYPE_RE = re.compile(r"^(?P<title>.+?)\s*\((?P<kind>[^()]+)\)\s*$")
+
+# Порядок важен: сначала таблица занятий, на которую ссылаются остальные.
+CLEAR_STATEMENTS = (
+    "DELETE FROM lessons",
+    "DELETE FROM subjects",
+    "DELETE FROM teachers",
+    "DELETE FROM rooms",
+    "DELETE FROM sqlite_sequence "
+    "WHERE name IN ('lessons', 'subjects', 'teachers', 'rooms')",
+)
 
 # Все значения подставляются через «?», а не через f-строки.
 INSERT_TEACHER = (
@@ -82,11 +96,14 @@ def build_rows(schedule: Schedule) -> dict[str, list[tuple]]:
 
 
 def import_schedule(json_path: str | Path = DEFAULT_JSON,
-                    db_path: str | Path | None = None) -> dict[str, int]:
+                    db_path: str | Path | None = None,
+                    replace: bool = False) -> dict[str, int]:
     """Перенести JSON в SQLite одной транзакцией.
 
-    Возвращает число реально добавленных строк по таблицам.
-    При любой ошибке SQLite изменения отменяются (rollback).
+    replace=True сначала очищает таблицы, поэтому в базе остаётся
+    ровно то, что записано в JSON. Возвращает число реально добавленных
+    строк по таблицам. При любой ошибке SQLite изменения (в том числе
+    очистка) отменяются: rollback.
     """
     rows = build_rows(load_schedule(str(json_path)))
     init_db(db_path)
@@ -95,6 +112,9 @@ def import_schedule(json_path: str | Path = DEFAULT_JSON,
     added: dict[str, int] = {}
     conn = get_connection(db_path)
     try:
+        if replace:
+            for query in CLEAR_STATEMENTS:
+                conn.execute(query)
         for table, query in statements:
             cursor = conn.executemany(query, rows[table])
             added[table] = max(cursor.rowcount, 0)
@@ -112,22 +132,26 @@ def import_schedule(json_path: str | Path = DEFAULT_JSON,
 def main(argv: list[str] | None = None) -> int:
     """Точка входа: python -m db.import_json [файл.json]."""
     args = sys.argv[1:] if argv is None else argv
-    json_path = Path(args[0]) if args else DEFAULT_JSON
+    replace = "--replace" in args
+    paths = [arg for arg in args if arg != "--replace"]
+    json_path = Path(paths[0]) if paths else DEFAULT_JSON
     if not json_path.exists():
         print(f"Файл {json_path} не найден.")
         return 1
     try:
-        added = import_schedule(json_path)
+        added = import_schedule(json_path, replace=replace)
     except sqlite3.Error:
         return 1
     print(f"Источник: {json_path}")
+    if replace:
+        print("Режим --replace: таблицы очищены и загружены заново.")
     print(f"Добавлено преподавателей: {added['teachers']}")
     print(f"Добавлено аудиторий:      {added['rooms']}")
     print(f"Добавлено предметов:      {added['subjects']}")
     print(f"Добавлено занятий:        {added['lessons']} "
           f"из {added['lessons_in_json']} в JSON")
     skipped = added["lessons_in_json"] - added["lessons"]
-    if skipped and added["lessons"] == 0:
+    if skipped and added["lessons"] == 0 and not replace:
         print("Данные уже были импортированы ранее.")
     elif skipped:
         print(f"Пропущено {skipped}: занятие уже есть или совпадает по "

@@ -4,20 +4,20 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
 from lessons.presenters import build_lesson_items
+from roomly.data import get_schedule
 from rooms.presenters import build_room_item, build_room_items
-from storage import load_schedule
 
 
 def room_list(request: HttpRequest) -> HttpResponse:
     """Список аудиторий с числом занятий в каждой."""
-    schedule = load_schedule()
+    schedule = get_schedule()
     context = {"rooms": build_room_items(schedule)}
     return render(request, "rooms/room_list.html", context)
 
 
 def room_detail(request: HttpRequest, room_id: int) -> HttpResponse:
     """Страница аудитории (room_id — номер в списке с 1)."""
-    schedule = load_schedule()
+    schedule = get_schedule()
     room = schedule.find_room_by_id(room_id)
     context = {"room_id": room_id, "room": None, "lessons": []}
     if room is not None:
