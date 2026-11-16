@@ -9,6 +9,8 @@ from db import check, import_json
 from db.check import format_table, load_queries
 from db.database import get_connection, init_db, list_tables, unicode_lower
 from db.import_json import import_schedule, room_floor, split_subject
+from db.repository import load_schedule_from_db
+from storage import load_schedule
 
 DATA = [
     {"day": "Понедельник", "time": "09:00", "subject": "Математика",
@@ -255,3 +257,85 @@ def test_check_main_on_loaded_db(loaded_db, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "foreign_key_list" in out
     assert "Запрос 12" in out
+
+
+# ---------- режим --replace ----------
+
+
+def test_replace_resyncs_database_with_json(tmp_path, loaded_db):
+    new_data = [DATA[0]]
+    added = import_schedule(write_json(tmp_path, new_data), loaded_db,
+                            replace=True)
+    assert added["lessons"] == 1
+    assert count(loaded_db, "lessons") == 1
+    assert count(loaded_db, "teachers") == 1
+    assert count(loaded_db, "subjects") == 1
+    conn = get_connection(loaded_db)
+    try:
+        # нумерация id начинается заново
+        assert conn.execute("SELECT id FROM lessons").fetchone()[0] == 1
+    finally:
+        conn.close()
+
+
+def test_replace_is_rolled_back_on_error(tmp_path, loaded_db,
+                                         monkeypatch):
+    monkeypatch.setattr(import_json, "INSERT_LESSON",
+                        "INSERT INTO no_such_table VALUES (?)")
+    with pytest.raises(sqlite3.Error):
+        import_schedule(write_json(tmp_path), loaded_db, replace=True)
+    # очистка таблиц тоже отменена: старые данные на месте
+    assert count(loaded_db, "lessons") == 3
+    assert count(loaded_db, "teachers") == 2
+
+
+def test_main_replace_flag(tmp_path, monkeypatch, capsys):
+    json_path = write_json(tmp_path)
+    db_path = tmp_path / "main.sqlite"
+    real_import = import_json.import_schedule
+    monkeypatch.setattr(
+        import_json, "import_schedule",
+        lambda path, replace=False: real_import(path, db_path,
+                                                replace=replace))
+    assert import_json.main([str(json_path)]) == 0
+    assert import_json.main([str(json_path), "--replace"]) == 0
+    assert "--replace" in capsys.readouterr().out
+    assert count(db_path, "lessons") == 3
+
+
+# ---------- чтение расписания из базы для сайта ----------
+
+
+def test_schedule_from_db_equals_schedule_from_json(tmp_path, loaded_db):
+    from_json = load_schedule(str(tmp_path / "schedule.json"))
+    from_db = load_schedule_from_db(loaded_db)
+    assert from_db.to_dicts() == from_json.to_dicts()
+    assert [t.name for t in from_db.teachers] == [
+        t.name for t in from_json.teachers]
+    assert [r.number for r in from_db.rooms] == [
+        r.number for r in from_json.rooms]
+
+
+def test_schedule_from_db_restores_lesson_type(loaded_db):
+    subjects = [lesson.subject for lesson in load_schedule_from_db(loaded_db)]
+    assert subjects == ["Математика", "Химия (лабораторная)", "Физика"]
+
+
+def test_schedule_from_db_shares_teacher_objects(loaded_db):
+    schedule = load_schedule_from_db(loaded_db)
+    assert schedule[0].teacher is schedule[1].teacher
+    assert schedule[0].room is schedule[2].room
+
+
+def test_schedule_from_missing_db_is_empty(tmp_path, capsys):
+    path = tmp_path / "нет.sqlite"
+    assert len(load_schedule_from_db(path)) == 0
+    assert not path.exists()  # пустой файл базы не создаётся
+    assert "python -m db.import_json" in capsys.readouterr().out
+
+
+def test_schedule_from_db_without_tables_is_empty(tmp_path, capsys):
+    path = tmp_path / "empty.sqlite"
+    sqlite3.connect(path).close()
+    assert len(load_schedule_from_db(path)) == 0
+    assert "Не удалось прочитать базу" in capsys.readouterr().out

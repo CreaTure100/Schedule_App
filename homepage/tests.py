@@ -1,8 +1,9 @@
 """Сквозные тесты веб-интерфейса (запуск: python manage.py test).
 
-Данные берутся из временного data/schedule.json, поэтому тесты не
-зависят от настоящего файла расписания. Часть проверок относится к
-системе шаблонов (ПР6): наследование, include, статика, статус 404.
+Данные берутся из временной базы SQLite, которая создаётся импортом из
+временного JSON, поэтому тесты не зависят от настоящей базы. Часть
+проверок относится к системе шаблонов (ПР6): наследование, include,
+статика, статус 404.
 """
 
 import json
@@ -10,9 +11,10 @@ import os
 import tempfile
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 
 import homepage.views
+from db.import_json import import_schedule
 
 DATA = [
     {"day": "Понедельник", "time": "09:00", "subject": "Математика",
@@ -28,15 +30,22 @@ class SiteTests(SimpleTestCase):
     """Проверки страниц сайта на временных данных."""
 
     def setUp(self):
-        old_cwd = os.getcwd()
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.addCleanup(os.chdir, old_cwd)
-        self.data_file = os.path.join(tmp.name, "data", "schedule.json")
-        os.makedirs(os.path.dirname(self.data_file))
-        with open(self.data_file, "w", encoding="utf-8") as f:
-            json.dump(DATA, f, ensure_ascii=False)
-        os.chdir(tmp.name)
+        self.json_file = os.path.join(tmp.name, "schedule.json")
+        self.db_file = os.path.join(tmp.name, "roomly.sqlite")
+        self.load_data(DATA)
+        override = override_settings(SQLITE_PATH=self.db_file)
+        override.enable()
+        self.addCleanup(override.disable)
+
+    def load_data(self, data):
+        """Пересоздать временную базу из списка словарей data."""
+        if os.path.exists(self.db_file):
+            os.remove(self.db_file)
+        with open(self.json_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        import_schedule(self.json_file, self.db_file)
 
     def test_index(self):
         response = self.client.get("/")
@@ -45,7 +54,7 @@ class SiteTests(SimpleTestCase):
         self.assertContains(response, "Данные загружены")
 
     def test_index_with_empty_schedule(self):
-        os.remove(self.data_file)
+        os.remove(self.db_file)
         self.assertContains(self.client.get("/"), "Расписание пусто")
 
     def test_lesson_list_and_detail(self):
@@ -148,14 +157,13 @@ class SiteTests(SimpleTestCase):
             {"day": "Понедельник", "time": "9:00", "subject": "Ранняя",
              "teacher": "Иванов И.И.", "room": "301"},
         ]
-        with open(self.data_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
+        self.load_data(data)
         html = self.client.get("/lessons/").content.decode()
         self.assertLess(html.index("Ранняя"), html.index("Поздняя"))
         self.assertLess(html.index("Поздняя"), html.index("Вторничная"))
 
     def test_empty_schedule_has_no_day_groups(self):
-        os.remove(self.data_file)
+        os.remove(self.db_file)
         response = self.client.get("/lessons/")
         self.assertContains(response, "Расписание пусто")
         self.assertNotContains(response, "day-group__title")
@@ -200,7 +208,7 @@ class SiteTests(SimpleTestCase):
         self.assertContains(teachers, "Сегодня занятий нет")
 
     def test_empty_collections(self):
-        os.remove(self.data_file)
+        os.remove(self.db_file)
         self.assertContains(self.client.get("/lessons/"), "Расписание пусто")
         self.assertContains(self.client.get("/teachers/"),
                             "Преподавателей пока нет")
@@ -219,3 +227,23 @@ class SiteTests(SimpleTestCase):
 
     def test_page_helper_is_removed(self):
         self.assertFalse(hasattr(homepage.views, "page"))
+
+    def test_pages_read_database_not_json(self):
+        # JSON с другими данными не влияет на страницы: они читают базу
+        with open(self.json_file, "w", encoding="utf-8") as f:
+            json.dump([], f)
+        self.assertContains(self.client.get("/lessons/"), "Математика")
+        self.assertContains(self.client.get("/teachers/"), "Петров П.П.")
+
+    def test_pages_follow_changes_in_database(self):
+        self.load_data(DATA[:1])
+        response = self.client.get("/lessons/")
+        self.assertContains(response, "Всего занятий: 1")
+        self.assertNotContains(response, "Физика")
+
+    def test_missing_database_shows_empty_schedule(self):
+        os.remove(self.db_file)
+        for url in ("/", "/lessons/", "/teachers/", "/rooms/"):
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertFalse(os.path.exists(self.db_file))

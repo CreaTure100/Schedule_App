@@ -152,9 +152,10 @@ class DbPagesTests(SimpleTestCase):
 
     def test_navigation_links_use_url_names(self):
         response = self.client.get("/")
-        for link in ("/db/lessons/", "/db/teachers/", "/db/today/",
-                     "/db/search/", "/db/stats/"):
+        for link in ("/db/stats/", "/db/today/", "/db/search/"):
             self.assertContains(response, f'href="{link}"')
+        self.assertContains(response, ">Статистика</button>")
+        self.assertNotContains(response, ">База данных</button>")
 
     def test_navigation_marks_active_db_page(self):
         response = self.client.get("/db/stats/")

@@ -5,7 +5,7 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from lessons.presenters import build_lesson_items
-from storage import load_schedule
+from roomly.data import get_schedule
 
 
 def page_not_found(request: HttpRequest,
@@ -16,7 +16,7 @@ def page_not_found(request: HttpRequest,
 
 def index(request: HttpRequest) -> HttpResponse:
     """Главная: сводка по расписанию и занятия на сегодня."""
-    schedule = load_schedule()
+    schedule = get_schedule()
     lessons = build_lesson_items(schedule, schedule.lessons)
     context = {
         "today": timezone.localdate(),
