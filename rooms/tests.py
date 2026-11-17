@@ -1,13 +1,29 @@
 """Тесты поиска свободных аудиторий (запуск: manage.py test)."""
 
+import io
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from PIL import Image
 
 from lessons.factories import make_lesson
 from lessons.models import Lesson
+from rooms.forms import RoomForm
 from rooms.models import Room
+
+
+def make_image(name="room.png", fmt="PNG"):
+    """Маленькая настоящая картинка для загрузки в форму."""
+    buffer = io.BytesIO()
+    Image.new("RGB", (8, 8), "white").save(buffer, fmt)
+    return SimpleUploadedFile(
+        name, buffer.getvalue(), content_type=f"image/{fmt.lower()}")
 
 
 class FreeRoomsTests(TestCase):
@@ -227,3 +243,187 @@ class RoomAdminTests(TestCase):
         })
         lesson.refresh_from_db()
         self.assertEqual(lesson.lesson_type, Lesson.LessonType.LABORATORY)
+
+
+class FreeRoomsCancelledTests(TestCase):
+    """Отменённое занятие не занимает аудиторию (ПР11)."""
+
+    def test_cancelled_lesson_frees_room(self):
+        lesson = make_lesson("Понедельник", "09:00", "Математика",
+                             "Иванов И.И.", "301")
+        busy = self.client.get(
+            "/rooms/free/", {"day": "Понедельник", "time": "09:00"})
+        self.assertNotContains(busy, "ауд. 301")
+        lesson.cancel()
+        free = self.client.get(
+            "/rooms/free/", {"day": "Понедельник", "time": "09:00"})
+        self.assertContains(free, "ауд. 301")
+
+    def test_counters_ignore_cancelled_lessons(self):
+        lesson = make_lesson("Понедельник", "09:00", "Математика",
+                             "Иванов И.И.", "301")
+        lesson.cancel()
+        self.assertContains(self.client.get("/rooms/"),
+                            "Занятий в расписании: 0")
+        self.assertContains(self.client.get("/teachers/"),
+                            "Занятий в расписании: 0")
+
+
+class RoomFormTests(TestCase):
+    """Форма RoomForm (ПР11)."""
+
+    def test_valid_form_without_image(self):
+        form = RoomForm({"number": "401", "floor": 4, "capacity": 30})
+        self.assertTrue(form.is_valid(), form.errors)
+        room = form.save()
+        self.assertTrue(room.slug.startswith("auditoriya-401-"))
+        self.assertFalse(room.image)
+
+    def test_service_fields_are_not_in_form(self):
+        fields = RoomForm().fields
+        self.assertNotIn("slug", fields)
+        self.assertNotIn("is_large", fields)
+
+    def test_number_validation(self):
+        for value in ("", "30 1", "<b>"):
+            with self.subTest(value=value):
+                form = RoomForm({"number": value})
+                self.assertFalse(form.is_valid())
+                self.assertIn("number", form.errors)
+        self.assertEqual(
+            RoomForm({"number": "<b>"}).errors["number"],
+            ["Номер может содержать только буквы, цифры и дефис."])
+        self.assertTrue(RoomForm({"number": "12а"}).is_valid())
+
+    def test_duplicate_number_is_rejected(self):
+        Room.objects.create(number="301")
+        form = RoomForm({"number": "301"})
+        self.assertFalse(form.is_valid())
+        self.assertEqual(form.errors["number"],
+                         ["Аудитория с таким номером уже есть."])
+
+    def test_capacity_must_be_positive(self):
+        form = RoomForm({"number": "401", "capacity": 0})
+        self.assertFalse(form.is_valid())
+        self.assertIn("capacity", form.errors)
+
+    def test_valid_image_is_accepted(self):
+        form = RoomForm({"number": "401"}, {"image": make_image()})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_unsupported_format_is_rejected(self):
+        form = RoomForm({"number": "401"},
+                        {"image": make_image("room.bmp", "BMP")})
+        self.assertFalse(form.is_valid())
+        self.assertIn("image", form.errors)
+
+    def test_not_an_image_is_rejected(self):
+        fake = SimpleUploadedFile("room.png", b"not an image",
+                                  content_type="image/png")
+        form = RoomForm({"number": "401"}, {"image": fake})
+        self.assertFalse(form.is_valid())
+        self.assertIn("image", form.errors)
+
+    def test_big_file_is_rejected(self):
+        with patch("rooms.forms.MAX_IMAGE_SIZE", 10):
+            form = RoomForm({"number": "401"}, {"image": make_image()})
+            self.assertFalse(form.is_valid())
+        self.assertEqual(form.errors["image"],
+                         ["Файл слишком большой: не более 2 МБ."])
+
+
+class RoomViewsTests(TestCase):
+    """Создание и редактирование аудитории, загрузка изображения."""
+
+    def setUp(self):
+        media = tempfile.TemporaryDirectory()
+        self.addCleanup(media.cleanup)
+        self.media_root = Path(media.name)
+        override = override_settings(MEDIA_ROOT=media.name)
+        override.enable()
+        self.addCleanup(override.disable)
+
+    def test_create_page_uses_multipart_form(self):
+        response = self.client.get("/rooms/create/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "rooms/room_form.html")
+        self.assertContains(response, 'enctype="multipart/form-data"')
+        self.assertContains(response, "csrfmiddlewaretoken")
+
+    def test_create_with_image_saves_file_and_shows_it(self):
+        response = self.client.post("/rooms/create/", {
+            "number": "401", "floor": 4, "capacity": 30,
+            "image": make_image()})
+        room = Room.objects.get(number="401")
+        self.assertRedirects(response, room.get_absolute_url())
+        self.assertTrue(room.image.name.startswith("rooms/"))
+        self.assertEqual(len(list((self.media_root / "rooms").iterdir())), 1)
+        page = self.client.get(room.get_absolute_url())
+        self.assertContains(page, f'src="{room.image.url}"')
+        file_response = self.client.get(room.image.url)
+        self.assertEqual(file_response.status_code, 200)
+        file_response.close()
+
+    def test_room_without_image_shows_message(self):
+        self.client.post("/rooms/create/", {"number": "401"})
+        room = Room.objects.get(number="401")
+        self.assertContains(self.client.get(room.get_absolute_url()),
+                            "Изображение не загружено.")
+
+    def test_create_with_invalid_data_shows_errors(self):
+        Room.objects.create(number="301")
+        response = self.client.post("/rooms/create/", {"number": "301"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Аудитория с таким номером уже есть.")
+        self.assertEqual(Room.objects.count(), 1)
+
+    def test_update_changes_room_and_keeps_image(self):
+        room = Room.objects.create(number="401", image=make_image())
+        old_name = room.image.name
+        response = self.client.post(f"/rooms/{room.pk}/edit/", {
+            "number": "402", "capacity": 40})
+        self.assertRedirects(response, room.get_absolute_url())
+        room.refresh_from_db()
+        self.assertEqual(room.number, "402")
+        self.assertEqual(room.image.name, old_name)
+        self.assertEqual(Room.objects.count(), 1)
+
+    def test_update_replaces_and_clears_image(self):
+        room = Room.objects.create(number="401", image=make_image())
+        old_name = room.image.name
+        self.client.post(f"/rooms/{room.pk}/edit/", {
+            "number": "401", "image": make_image("new.png")})
+        room.refresh_from_db()
+        self.assertNotEqual(room.image.name, old_name)
+        self.client.post(f"/rooms/{room.pk}/edit/", {
+            "number": "401", "image-clear": "on"})
+        room.refresh_from_db()
+        self.assertFalse(room.image)
+
+    def test_update_page_is_filled_and_missing_room_is_404(self):
+        room = Room.objects.create(number="401", floor=4)
+        response = self.client.get(f"/rooms/{room.pk}/edit/")
+        self.assertEqual(response.context["form"].instance, room)
+        self.assertContains(response, 'value="401"')
+        self.assertEqual(
+            self.client.get("/rooms/999999/edit/").status_code, 404)
+
+    def test_create_route_is_not_taken_for_slug(self):
+        response = self.client.get("/rooms/create/")
+        self.assertNotEqual(response.status_code, 404)
+
+    def test_list_and_detail_have_action_links(self):
+        room = Room.objects.create(number="401")
+        self.assertContains(self.client.get("/rooms/"),
+                            'href="/rooms/create/"')
+        detail = self.client.get(room.get_absolute_url())
+        self.assertContains(detail, f'href="/rooms/{room.pk}/edit/"')
+        self.assertContains(detail, f"/lessons/create/?room={room.pk}")
+
+    def test_admin_change_page_has_image_field(self):
+        admin = get_user_model().objects.create_superuser(
+            "admin", "admin@example.com", "password")
+        self.client.force_login(admin)
+        room = Room.objects.create(number="401")
+        response = self.client.get(f"/admin/rooms/room/{room.pk}/change/")
+        self.assertContains(response, 'name="image"')

@@ -9,8 +9,11 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
+from dbpages.forms import SORT_CHOICES, LessonFilterForm
+from dbpages.views import SORT_FIELDS
 from lessons.factories import make_lesson
 from lessons.models import Lesson
+from rooms.models import Room
 from teachers.models import Teacher
 
 MONDAY_10 = datetime(2026, 10, 19, 10, 0)
@@ -284,3 +287,106 @@ class DbPagesTests(TestCase):
         for url in pages:
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 200)
+
+
+class LessonFilterFormTests(TestCase):
+    """Форма фильтрации LessonFilterForm (ПР11)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        make_lesson("Понедельник", "09:00", "Математика",
+                    "Иванов И.И.", "301")
+        cls.teacher = Teacher.objects.get(full_name="Иванов И.И.")
+        cls.room = Room.objects.get(number="301")
+
+    def test_empty_form_is_valid(self):
+        form = LessonFilterForm({})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_unbound_form_is_not_bound(self):
+        self.assertFalse(LessonFilterForm().is_bound)
+
+    def test_cleaned_data_contains_objects(self):
+        form = LessonFilterForm({
+            "day": "Понедельник", "teacher": self.teacher.pk,
+            "room": self.room.pk, "q": "  физ  ", "sort": "room"})
+        self.assertTrue(form.is_valid(), form.errors)
+        data = form.cleaned_data
+        self.assertEqual(data["teacher"], self.teacher)
+        self.assertEqual(data["room"], self.room)
+        self.assertEqual(data["q"], "физ")
+        self.assertEqual(data["day"], "Понедельник")
+        self.assertEqual(data["sort"], "room")
+
+    def test_invalid_values_give_field_errors(self):
+        cases = {
+            "day": "Foo", "teacher": "abc", "room": "999999",
+            "sort": "id; DROP TABLE x",
+        }
+        for name, value in cases.items():
+            with self.subTest(field=name):
+                form = LessonFilterForm({name: value})
+                self.assertFalse(form.is_valid())
+                self.assertIn(name, form.errors)
+        self.assertEqual(LessonFilterForm({"day": "Foo"}).errors["day"],
+                         ["Выберите день недели из списка."])
+
+    def test_garbage_ids_do_not_reach_database(self):
+        with self.assertNumQueries(0):
+            form = LessonFilterForm(
+                {"teacher": "²", "room": "9" * 30})
+            self.assertFalse(form.is_valid())
+
+    def test_sort_choices_match_view_whitelist(self):
+        self.assertEqual({value for value, _ in SORT_CHOICES},
+                         set(SORT_FIELDS))
+
+
+class FilterFormPageTests(TestCase):
+    """Страница /db/lessons/ с формой фильтрации (ПР11)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        make_lesson("Понедельник", "09:00", "Математика",
+                    "Иванов И.И.", "301")
+        make_lesson("Вторник", "10:00", "Алгебра", "Петров П.П.", "302")
+
+    def test_form_is_in_context(self):
+        response = self.client.get("/db/lessons/")
+        self.assertIsInstance(response.context["form"], LessonFilterForm)
+        self.assertFalse(response.context["form"].is_bound)
+
+    def test_selected_values_are_kept(self):
+        response = self.client.get("/db/lessons/", {"day": "Вторник"})
+        self.assertContains(response, '<option value="Вторник" selected>')
+        self.assertContains(response, "Найдено занятий: 1")
+
+    def test_invalid_room_shows_field_and_general_error(self):
+        response = self.client.get("/db/lessons/", {"room": "999999"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Выберите аудиторию из списка.")
+        self.assertContains(
+            response, "Проверьте корректность параметров фильтрации.")
+        # Фильтрация по непроверенным данным не выполняется.
+        self.assertContains(response, "Найдено занятий: 2")
+
+    def test_cancelled_lessons_are_not_listed(self):
+        Lesson.objects.get(subject__title="Алгебра").cancel()
+        response = self.client.get("/db/lessons/")
+        self.assertContains(response, "Найдено занятий: 1")
+        self.assertNotContains(response, "Алгебра")
+
+    def test_stats_and_search_ignore_cancelled(self):
+        Lesson.objects.get(subject__title="Алгебра").cancel()
+        stats = self.client.get("/db/stats/")
+        self.assertEqual(stats.context["summary"]["lessons_count"], 1)
+        rows = {item.full_name: item.lessons_count
+                for item in stats.context["by_teacher"]}
+        self.assertEqual(rows["Петров П.П."], 0)
+        search = self.client.get("/db/search/", {"q": "алгебра"})
+        self.assertContains(search, "Ничего не найдено")
+
+    def test_table_has_edit_link(self):
+        lesson = Lesson.objects.get(subject__title="Алгебра")
+        self.assertContains(self.client.get("/db/lessons/"),
+                            f'href="/lessons/{lesson.pk}/edit/"')

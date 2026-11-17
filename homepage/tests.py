@@ -242,3 +242,20 @@ class SiteTests(TestCase):
             self.client.get("/rooms/")
         with self.assertNumQueries(2):
             self.client.get(f"/lessons/{self.math.pk}/")
+
+
+class MediaTests(TestCase):
+    """Раздача загруженных файлов и сообщения (ПР11)."""
+
+    def test_missing_media_file_returns_404(self):
+        response = self.client.get("/media/rooms/net-takogo.png")
+        self.assertEqual(response.status_code, 404)
+
+    def test_message_is_shown_once(self):
+        lesson = make_lesson("Понедельник", "09:00", "Математика",
+                             "Иванов И.И.", "301")
+        first = self.client.post(f"/lessons/{lesson.pk}/cancel/",
+                                 follow=True)
+        self.assertContains(first, "alert-success")
+        second = self.client.get("/lessons/")
+        self.assertNotContains(second, "alert-success")
