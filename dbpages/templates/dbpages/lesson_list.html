@@ -1,12 +1,87 @@
 {% extends "base.html" %}
 
-{% block title %}Занятия (SQLite) – Roomly{% endblock %}
+{% block title %}Занятия (ORM) – Roomly{% endblock %}
 
 {% block content %}
 <h1 class="page-title">Занятия из базы данных</h1>
-<p class="page-subtitle">Запрос SELECT с JOIN четырёх таблиц и ORDER BY. Всего занятий: {{ lessons|length }}</p>
+<p class="page-subtitle">Запрос Django ORM: filter(), order_by(), annotate(), values() и Paginator. Найдено занятий: {{ total }}</p>
 
-{% include "dbpages/includes/db_error.html" %}
-{% include "dbpages/includes/lessons_table.html" with empty_text="В базе нет занятий. Выполните python -m db.import_json." %}
+<form class="row g-3 mb-4" method="get" action="{% url 'dbpages:lessons' %}">
+  <div class="col-md-3">
+    <label class="form-label" for="f-day">День недели</label>
+    <select class="form-select" id="f-day" name="day">
+      <option value="">Любой</option>
+      {% for name in days %}
+        <option value="{{ name }}"{% if name == day %} selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="f-teacher">Преподаватель</label>
+    <select class="form-select" id="f-teacher" name="teacher">
+      <option value="">Все преподаватели</option>
+      {% for item in teachers %}
+        <option value="{{ item.pk }}"{% if selected_teacher == item.pk|stringformat:"s" %} selected{% endif %}>{{ item.full_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="f-room">Аудитория</label>
+    <select class="form-select" id="f-room" name="room">
+      <option value="">Все аудитории</option>
+      {% for item in rooms %}
+        <option value="{{ item.pk }}"{% if selected_room == item.pk|stringformat:"s" %} selected{% endif %}>ауд. {{ item.number }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="f-q">Предмет</label>
+    <input class="form-control" id="f-q" type="search" name="q" value="{{ q }}" placeholder="Например, физика">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label" for="f-sort">Сортировать по</label>
+    <select class="form-select" id="f-sort" name="sort">
+      <option value="day"{% if sort == "day" %} selected{% endif %}>Дню и времени</option>
+      <option value="subject"{% if sort == "subject" %} selected{% endif %}>Предмету</option>
+      <option value="teacher"{% if sort == "teacher" %} selected{% endif %}>Преподавателю</option>
+      <option value="room"{% if sort == "room" %} selected{% endif %}>Аудитории</option>
+    </select>
+  </div>
+  <div class="col-md-9 d-flex align-items-end gap-2">
+    <button class="btn btn-roomly" type="submit">Найти</button>
+    <a class="btn btn-outline-secondary" href="{% url 'dbpages:lessons' %}">Сбросить</a>
+  </div>
+</form>
+
+{% if error %}
+  <div class="alert alert-warning" role="alert">{{ error }}</div>
+{% endif %}
+
+{% include "dbpages/includes/lessons_table.html" with empty_text="Занятий не найдено. Измените фильтры или выполните python -m db.import_sqlite_to_orm." %}
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav aria-label="Навигация по страницам">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="{% querystring page=page_obj.previous_page_number %}">Назад</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Назад</span></li>
+    {% endif %}
+    {% for page_number in page_obj.paginator.page_range %}
+      {% if page_number == page_obj.number %}
+        <li class="page-item active" aria-current="page"><span class="page-link">{{ page_number }}</span></li>
+      {% else %}
+        <li class="page-item"><a class="page-link" href="{% querystring page=page_number %}">{{ page_number }}</a></li>
+      {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="{% querystring page=page_obj.next_page_number %}">Далее</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Далее</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
 {% include "dbpages/includes/sql_box.html" %}
 {% endblock %}

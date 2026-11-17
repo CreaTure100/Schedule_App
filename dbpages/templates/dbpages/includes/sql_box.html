@@ -1,6 +1,7 @@
-{# Текст выполненного SQL-запроса. Параметры: sql, params (необязательно). #}
+{# SQL-запрос, который Django ORM построил для страницы. Параметр: sql. #}
+{% if sql %}
 <details class="sql-query">
-  <summary>Показать SQL-запрос</summary>
+  <summary>Показать SQL-запрос, построенный ORM</summary>
   <pre><code>{{ sql }}</code></pre>
-  {% if params %}<p class="sql-query__params">Параметры «?»: {{ params|join:", " }}</p>{% endif %}
 </details>
+{% endif %}

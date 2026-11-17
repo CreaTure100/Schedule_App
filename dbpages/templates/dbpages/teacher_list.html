@@ -1,12 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Преподаватели (SQLite) – Roomly{% endblock %}
+{% block title %}Преподаватели (ORM) – Roomly{% endblock %}
 
 {% block content %}
 <h1 class="page-title">Преподаватели из базы данных</h1>
-<p class="page-subtitle">Запрос SELECT ... ORDER BY surname. Всего преподавателей: {{ teachers|length }}</p>
+<p class="page-subtitle">Запрос Django ORM: order_by("surname") и prefetch_related(). Всего преподавателей: {{ teachers|length }}</p>
 
-{% include "dbpages/includes/db_error.html" %}
 <div class="table-responsive">
   <table class="table table-hover align-middle db-table">
     <thead>
@@ -15,6 +14,7 @@
         <th scope="col">Преподаватель</th>
         <th scope="col">Фамилия</th>
         <th scope="col">E-mail</th>
+        <th scope="col">Предметы</th>
       </tr>
     </thead>
     <tbody>
@@ -23,11 +23,12 @@
           <td>{{ item.id }}</td>
           <td>{{ item.full_name }}</td>
           <td>{{ item.surname }}</td>
-          <td>{{ item.email|default_if_none:"не указан" }}</td>
+          <td>{{ item.email|default:"не указан" }}</td>
+          <td>{{ item.subjects|join:", "|default:"—" }}</td>
         </tr>
       {% empty %}
         <tr>
-          <td colspan="4" class="empty-state">В базе нет преподавателей. Выполните python -m db.import_json.</td>
+          <td colspan="5" class="empty-state">В базе нет преподавателей. Выполните python -m db.import_sqlite_to_orm.</td>
         </tr>
       {% endfor %}
     </tbody>
