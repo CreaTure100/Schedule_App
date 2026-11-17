@@ -1,9 +1,8 @@
-"""Подготовка данных преподавателей для шаблонов (без HTML)."""
+"""Подготовка данных преподавателей для шаблонов (без HTML и без SQL)."""
 
 from dataclasses import dataclass
 
-from lessons.presenters import today_name
-from models import Schedule, Teacher
+from teachers.models import Teacher
 
 
 @dataclass(frozen=True)
@@ -17,23 +16,16 @@ class TeacherItem:
     today_count: int
 
 
-def build_teacher_item(schedule: Schedule, teacher: Teacher,
-                       today: str | None = None) -> TeacherItem:
-    """Собрать TeacherItem: ID, имя, число занятий и занятий сегодня."""
-    if today is None:
-        today = today_name()
-    lessons = schedule.lessons_of_teacher(teacher)
+def build_teacher_item(teacher: Teacher) -> TeacherItem:
+    """Собрать TeacherItem из преподавателя с аннотациями ORM.
+
+    Объект должен быть получен запросом с annotate(lessons_count=...,
+    today_count=...): число занятий считает база данных (Count).
+    """
     return TeacherItem(
-        id=schedule.teacher_id(teacher),
-        name=teacher.name,
+        id=teacher.pk,
+        name=teacher.full_name,
         surname=teacher.surname,
-        lessons_count=len(lessons),
-        today_count=sum(1 for item in lessons if item.is_on_day(today)),
+        lessons_count=teacher.lessons_count,
+        today_count=teacher.today_count,
     )
-
-
-def build_teacher_items(schedule: Schedule) -> list[TeacherItem]:
-    """TeacherItem для всех преподавателей расписания."""
-    today = today_name()
-    return [build_teacher_item(schedule, teacher, today)
-            for teacher in schedule.teachers]

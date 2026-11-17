@@ -1,17 +1,19 @@
 """Подготовка данных занятий для шаблонов.
 
-Модуль не формирует HTML: он превращает объекты предметной области
-(Lesson, Schedule) в простые элементы со всем, что нужно шаблону —
+Модуль не формирует HTML и не обращается к базе данных: он превращает
+объекты модели Lesson (их получают представления через ORM, связанные
+предмет, преподаватель и аудитория загружены заранее методом
+select_related) в простые элементы со всем, что нужно шаблону:
 идентификаторами для ссылок и признаком «проходит сегодня».
-Так шаблонам не приходится ничего вычислять самим.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from django.utils import timezone
 
-from models import DAYS, Lesson, Schedule
-from schedule import filter_lessons_by_day, sort_lessons_by_time
+from lessons.models import Lesson
+from models import DAYS
 
 
 @dataclass(frozen=True)
@@ -44,47 +46,56 @@ def today_name() -> str:
     return DAYS[weekday] if weekday < len(DAYS) else ""
 
 
-def build_lesson_item(schedule: Schedule, lesson: Lesson,
+def day_number(name: str) -> int:
+    """Номер дня недели по названию: 1 — понедельник … 6 — суббота.
+
+    Для неизвестного названия (в том числе пустого) возвращается 0:
+    такого значения в базе нет, поэтому фильтр по нему ничего не найдёт.
+    """
+    return DAYS.index(name) + 1 if name in DAYS else 0
+
+
+def today_number() -> int:
+    """Номер сегодняшнего дня недели (0 в воскресенье)."""
+    return day_number(today_name())
+
+
+def build_lesson_item(lesson: Lesson,
                       today: str | None = None) -> LessonItem:
-    """Собрать LessonItem для одного занятия из расписания."""
+    """Собрать LessonItem для одного занятия из базы данных."""
     if today is None:
         today = today_name()
+    day = lesson.get_day_display()
     return LessonItem(
-        id=schedule.lesson_id(lesson),
-        day=lesson.day,
-        time=lesson.time,
-        subject=lesson.subject,
-        teacher=lesson.teacher.name,
-        teacher_id=schedule.teacher_id(lesson.teacher),
+        id=lesson.pk,
+        day=day,
+        time=lesson.start_time.strftime("%H:%M"),
+        subject=lesson.subject_label,
+        teacher=lesson.teacher.full_name,
+        teacher_id=lesson.teacher_id,
         room=lesson.room.number,
-        room_id=schedule.room_id(lesson.room),
-        is_today=lesson.is_on_day(today),
+        room_id=lesson.room_id,
+        is_today=(day == today),
     )
 
 
-def build_lesson_items(schedule: Schedule,
-                       lessons: list[Lesson]) -> list[LessonItem]:
-    """Собрать LessonItem для списка занятий этого расписания."""
+def build_lesson_items(lessons: Iterable[Lesson]) -> list[LessonItem]:
+    """Собрать LessonItem для набора занятий."""
     today = today_name()
-    return [build_lesson_item(schedule, lesson, today)
-            for lesson in lessons]
+    return [build_lesson_item(lesson, today) for lesson in lessons]
 
 
-def build_day_groups(schedule: Schedule) -> list[DayGroup]:
+def build_day_groups(lessons: Iterable[Lesson]) -> list[DayGroup]:
     """Занятия, сгруппированные по дням недели (Понедельник–Суббота).
 
-    Дни идут в порядке DAYS, занятия внутри дня — по времени начала.
-    Используются функции ПР3 filter_lessons_by_day() и
-    sort_lessons_by_time(). Дни без занятий тоже попадают в результат.
+    Занятия должны прийти из базы уже отсортированными по дню и времени
+    (order_by("day", "start_time")): порядок внутри дня сохраняется.
+    Дни без занятий тоже попадают в результат.
     """
     today = today_name()
-    groups = []
-    for day in DAYS:
-        lessons = sort_lessons_by_time(filter_lessons_by_day(schedule, day))
-        groups.append(DayGroup(
-            name=day,
-            is_today=(day == today),
-            lessons=[build_lesson_item(schedule, lesson, today)
-                     for lesson in lessons],
-        ))
-    return groups
+    by_day: dict[str, list[LessonItem]] = {day: [] for day in DAYS}
+    for lesson in lessons:
+        item = build_lesson_item(lesson, today)
+        by_day[item.day].append(item)
+    return [DayGroup(name=day, is_today=(day == today), lessons=by_day[day])
+            for day in DAYS]
