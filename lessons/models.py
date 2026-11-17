@@ -53,6 +53,16 @@ class LessonQuerySet(models.QuerySet):
     доступны и через обратные связи (room.lessons.on_day(2)).
     """
 
+    def active(self):
+        """Занятия, которые проводятся (отменённые не входят) — ПР11.
+
+        Это правило отбора вынесено в QuerySet, как Booking.objects.
+        active() в методичке: представления и формы не повторяют условие
+        status=ACTIVE вручную, а отменённое занятие не блокирует
+        аудиторию и преподавателя.
+        """
+        return self.filter(status=Lesson.Status.ACTIVE)
+
     def on_day(self, day_number):
         """Занятия указанного дня недели (1 — понедельник … 6)."""
         return self.filter(day=day_number)
@@ -91,6 +101,12 @@ class Lesson(TimeStampedModel):
         LABORATORY = "лабораторная", "Лабораторная"
         LECTURE = "лекция", "Лекция"
         PRACTICE = "практика", "Практика"
+
+    class Status(models.TextChoices):
+        """Статус занятия (ПР11): проводится или отменено."""
+
+        ACTIVE = "active", "Проводится"
+        CANCELLED = "cancelled", "Отменено"
 
     # Менеджер с методами LessonQuerySet: Lesson.objects.on_day(1).
     objects = LessonQuerySet.as_manager()
@@ -144,12 +160,34 @@ class Lesson(TimeStampedModel):
         verbose_name="Тип занятия",
     )
 
+    # Статус (ПР11): отмена занятия не удаляет запись, а меняет статус,
+    # чтобы сохранить историю. Пользователь статус через форму не
+    # выбирает: новое занятие всегда «проводится».
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        verbose_name="Статус",
+    )
+
     @property
     def subject_label(self):
         """Название для страниц: «Химия (лабораторная)» или «Физика»."""
         if self.lesson_type:
             return f"{self.subject.title} ({self.lesson_type})"
         return self.subject.title
+
+    def cancel(self):
+        """Отменить занятие: сменить статус, не удаляя запись (ПР11)."""
+        self.status = self.Status.CANCELLED
+        # updated_at входит в update_fields, иначе auto_now его не
+        # сохранит.
+        self.save(update_fields=["status", "updated_at"])
+
+    @property
+    def is_active(self):
+        """Проводится ли занятие (не отменено)."""
+        return self.status == self.Status.ACTIVE
 
     def is_on_day(self, day_name):
         """Проходит ли занятие в указанный день недели (по названию)."""
@@ -176,12 +214,23 @@ class Lesson(TimeStampedModel):
                 name="lesson_duration_positive",
             ),
             # Аудитория и преподаватель не ведут два занятия сразу.
+            # С ПР11 ограничение действует только для занятий со
+            # статусом «проводится»: отменённое занятие не блокирует
+            # аудиторию и преподавателя (частичный уникальный индекс).
             models.UniqueConstraint(
                 fields=["day", "start_time", "room"],
-                name="unique_room_slot",
+                condition=Q(status="active"),
+                name="unique_active_room_slot",
+                violation_error_message=(
+                    "В это время аудитория занята другим занятием."
+                ),
             ),
             models.UniqueConstraint(
                 fields=["day", "start_time", "teacher"],
-                name="unique_teacher_slot",
+                condition=Q(status="active"),
+                name="unique_active_teacher_slot",
+                violation_error_message=(
+                    "В это время преподаватель ведёт другое занятие."
+                ),
             ),
         ]
