@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}{% if lesson_id %}Редактирование занятия{% else %}Новое занятие{% endif %} – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="page-title">{% if lesson_id %}Редактирование занятия{% else %}Новое занятие{% endif %}</h1>
+<p class="page-subtitle">Поля, отмеченные <span class="text-danger">*</span>, обязательны.</p>
+
+{# Форма отправляет данные методом POST; без CSRF-токена Django ответит 403. #}
+<form method="post" novalidate class="entity-form">
+  {% csrf_token %}
+  {% include "includes/form_fields.html" %}
+  <button type="submit" class="btn btn-roomly">{% if lesson_id %}Сохранить изменения{% else %}Добавить занятие{% endif %}</button>
+  {% if lesson_id %}
+    <a class="btn btn-outline-secondary" href="{% url 'lessons:detail' lesson_id %}">Отмена</a>
+  {% else %}
+    <a class="btn btn-outline-secondary" href="{% url 'lessons:list' %}">Отмена</a>
+  {% endif %}
+</form>
+{% endblock %}

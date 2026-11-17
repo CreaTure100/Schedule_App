@@ -17,7 +17,16 @@
       <dt>Статус дня</dt>
       <dd>{{ day_status }}</dd>
     </dl>
-    <a class="btn btn-outline-secondary" href="{% url 'lessons:list' %}">← Ко всем занятиям</a>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'lessons:list' %}">← Ко всем занятиям</a>
+      <a class="btn btn-roomly" href="{% url 'lessons:update' lesson.id %}">Редактировать</a>
+      {# Отмена меняет данные, поэтому это POST-форма с CSRF-токеном, а не ссылка. #}
+      <form method="post" action="{% url 'lessons:cancel' lesson.id %}" class="d-inline"
+            onsubmit="return confirm('Отменить занятие? Оно исчезнет из расписания, но запись сохранится в базе данных.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger">Отменить занятие</button>
+      </form>
+    </div>
   </div>
 </article>
 {% endblock %}

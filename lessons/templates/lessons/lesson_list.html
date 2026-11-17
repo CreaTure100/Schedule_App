@@ -4,7 +4,10 @@
 
 {% block content %}
 <h1 class="page-title">Занятия</h1>
-<p class="page-subtitle">Всего занятий: {{ lessons|length }}</p>
+<p class="page-subtitle">
+  Всего занятий: {{ lessons|length }}
+  <a class="btn btn-roomly btn-sm ms-3" href="{% url 'lessons:create' %}">Добавить занятие</a>
+</p>
 
 {% if lessons %}
   {% for day in days %}
