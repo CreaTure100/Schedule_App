@@ -21,6 +21,12 @@
       <p class="card-text mb-1">Часов в неделю</p><strong class="h3">{{ summary.total_hours|default_if_none:0 }}</strong>
     </div></div></div>
   </div>
+  <p class="page-subtitle">
+    По типам: лабораторных — {{ summary.laboratory_count }},
+    лекций — {{ summary.lecture_count }},
+    практик — {{ summary.practice_count }},
+    без типа — {{ summary.regular_count }}.
+  </p>
   <p class="page-subtitle">Занятия начинаются с {{ summary.first_start|time:"H:i"|default:"—" }} и до {{ summary.last_start|time:"H:i"|default:"—" }}.</p>
 {% endif %}
 

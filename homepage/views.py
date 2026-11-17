@@ -20,8 +20,8 @@ def index(request: HttpRequest) -> HttpResponse:
     """Главная: сводка по расписанию и занятия на сегодня."""
     today_lessons = (
         Lesson.objects
-        .filter(day=lesson_presenters.today_number())
-        .select_related("subject", "teacher", "room")
+        .on_day(lesson_presenters.today_number())
+        .with_related()
         .order_by("start_time", "pk")
     )
     context = {

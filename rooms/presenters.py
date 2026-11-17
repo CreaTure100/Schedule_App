@@ -15,6 +15,8 @@ class RoomItem:
     capacity: int | None
     lessons_count: int
     today_count: int
+    url: str = ""
+    is_large: bool = False
 
 
 def build_room_item(room: Room) -> RoomItem:
@@ -30,4 +32,6 @@ def build_room_item(room: Room) -> RoomItem:
         capacity=room.capacity,
         lessons_count=room.lessons_count,
         today_count=room.today_count,
+        url=room.get_absolute_url(),
+        is_large=room.is_large,
     )

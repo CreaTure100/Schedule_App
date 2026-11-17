@@ -16,6 +16,8 @@
         <dt>Вместимость</dt>
         <dd>{{ room.capacity }} чел.</dd>
       {% endif %}
+      <dt>Большая аудитория</dt>
+      <dd>{% if room.is_large %}да (от 50 мест){% else %}нет{% endif %}</dd>
       <dt>Занятий в расписании</dt>
       <dd>{{ lessons|length }}</dd>
     </dl>

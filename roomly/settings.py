@@ -1,5 +1,6 @@
 """Настройки Django-проекта roomly («Расписание занятий»)."""
 
+import importlib.util
 import os
 from pathlib import Path
 
@@ -58,6 +59,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # ПР10: site_name и rooms_total во всех шаблонах.
+                'rooms.context_processors.room_context',
             ],
         },
     },
@@ -118,3 +121,18 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# ПР10: Django Debug Toolbar — панель анализа SQL-запросов страниц.
+# Подключается только при ROOMLY_DEBUG=1 (Windows PowerShell:
+# $env:ROOMLY_DEBUG = "1") и только если пакет установлен
+# (pip install django-debug-toolbar). Без этого проект работает как
+# раньше, а тесты не зависят от панели.
+INTERNAL_IPS = ["127.0.0.1"]
+USE_DEBUG_TOOLBAR = (
+    DEBUG and importlib.util.find_spec("debug_toolbar") is not None
+)
+if USE_DEBUG_TOOLBAR:
+    INSTALLED_APPS += ["debug_toolbar"]
+    # Middleware панели ставится как можно раньше.
+    MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")

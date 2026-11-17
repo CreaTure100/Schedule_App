@@ -16,7 +16,7 @@ def lesson_list(request: HttpRequest) -> HttpResponse:
     # вся страница строится одним обращением к базе данных.
     lessons = list(
         Lesson.objects
-        .select_related("subject", "teacher", "room")
+        .with_related()
         .order_by("day", "start_time", "pk")
     )
     context = {

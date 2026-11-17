@@ -103,14 +103,14 @@ def lesson_list(request: HttpRequest) -> HttpResponse:
     # Фильтры применяются по очереди и объединяются по «И».
     if day_name:
         if day_name in DAYS:
-            lessons = lessons.filter(day=day_number(day_name))
+            lessons = lessons.on_day(day_number(day_name))
         else:
             error = "Выберите день недели из списка."
     teacher_pk, room_pk = parse_id(teacher_id), parse_id(room_id)
     if teacher_pk is not None:
-        lessons = lessons.filter(teacher_id=teacher_pk)
+        lessons = lessons.for_teacher(teacher_pk)
     if room_pk is not None:
-        lessons = lessons.filter(room_id=room_pk)
+        lessons = lessons.for_room(room_pk)
     if query:
         # Фильтрация по полю связанной модели (subject__title).
         lessons = lessons.filter(contains_nocase("subject__title", query))
@@ -176,7 +176,8 @@ def today_lessons(request: HttpRequest) -> HttpResponse:
     # В воскресенье day=7: такого значения в базе нет, список пуст.
     rows = lesson_rows(
         Lesson.objects
-        .filter(day=weekday, start_time__gte=now_time)
+        .on_day(weekday)
+        .filter(start_time__gte=now_time)
         .order_by("start_time", "pk")
     )
     context = {
@@ -201,7 +202,7 @@ def search_lessons(request: HttpRequest) -> HttpResponse:
     if searched:
         lessons = Lesson.objects.all()
         if day_name:
-            lessons = lessons.filter(day=day_number(day_name))
+            lessons = lessons.on_day(day_number(day_name))
         if teacher:
             lessons = lessons.filter(
                 contains_nocase("teacher__full_name", teacher))
@@ -234,6 +235,14 @@ def stats(request: HttpRequest) -> HttpResponse:
         teachers_count=Count("teacher", distinct=True),
         rooms_count=Count("room", distinct=True),
         total_hours=Sum("duration_hours"),
+        # Count(..., filter=Q(...)) — счётчики по условиям (типы занятий).
+        laboratory_count=Count(
+            "id", filter=Q(lesson_type=Lesson.LessonType.LABORATORY)),
+        lecture_count=Count(
+            "id", filter=Q(lesson_type=Lesson.LessonType.LECTURE)),
+        practice_count=Count(
+            "id", filter=Q(lesson_type=Lesson.LessonType.PRACTICE)),
+        regular_count=Count("id", filter=Q(lesson_type="")),
         first_start=Min("start_time"),
         last_start=Max("start_time"),
     )

@@ -32,7 +32,7 @@
   <h2 class="section-title">{{ day }}, {{ time }}</h2>
   <div class="list-group">
     {% for room in rooms %}
-      <a class="list-group-item list-group-item-action room-card" href="{% url 'rooms:detail' room.pk %}">
+      <a class="list-group-item list-group-item-action room-card" href="{{ room.get_absolute_url }}">
         <span>
           <strong>ауд. {{ room.number }}</strong><br>
           <small class="text-secondary">
