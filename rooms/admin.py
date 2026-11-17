@@ -12,7 +12,9 @@ class RoomLessonInline(admin.TabularInline):
 
     model = Lesson
     extra = 0
-    fields = ("day", "start_time", "subject", "teacher", "lesson_type")
+    fields = (
+        "day", "start_time", "subject", "teacher", "lesson_type", "status",
+    )
     autocomplete_fields = ("subject", "teacher")
     # Ссылка «Изменить» ведёт в полную карточку занятия.
     show_change_link = True
@@ -36,8 +38,9 @@ class RoomAdmin(admin.ModelAdmin):
     list_per_page = 20
     # is_large вычисляет база данных, slug создаётся автоматически.
     readonly_fields = ("is_large", "slug", "created_at", "updated_at")
+    # image (ПР11): изображение загружается прямо в карточке аудитории.
     fields = (
-        "number", "floor", "capacity", "is_large", "slug",
+        "number", "floor", "capacity", "image", "is_large", "slug",
         "created_at", "updated_at",
     )
     inlines = (RoomLessonInline,)

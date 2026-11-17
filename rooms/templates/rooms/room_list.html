@@ -7,6 +7,7 @@
 <p class="page-subtitle">
   Всего аудиторий: {{ rooms|length }}
   <a class="btn btn-outline-secondary btn-sm ms-3" href="{% url 'rooms:free' %}">Найти свободную аудиторию</a>
+  <a class="btn btn-roomly btn-sm ms-2" href="{% url 'rooms:create' %}">Добавить аудиторию</a>
 </p>
 
 <div class="list-group">

@@ -12,7 +12,9 @@ class TeacherLessonInline(admin.TabularInline):
 
     model = Lesson
     extra = 0
-    fields = ("day", "start_time", "subject", "room", "lesson_type")
+    fields = (
+        "day", "start_time", "subject", "room", "lesson_type", "status",
+    )
     autocomplete_fields = ("subject", "room")
     show_change_link = True
     verbose_name = "Занятие преподавателя"

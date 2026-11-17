@@ -5,6 +5,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 
 from lessons import presenters as lesson_presenters
+from lessons.models import Lesson
 from teachers.models import Teacher
 from teachers.presenters import build_teacher_item
 
@@ -18,9 +19,11 @@ def teachers_with_counts():
     остаются в результате (счётчик равен 0).
     """
     today = lesson_presenters.today_number()
+    # ПР11: отменённые занятия не считаются.
+    active = Q(lessons__status=Lesson.Status.ACTIVE)
     return Teacher.objects.annotate(
-        lessons_count=Count("lessons"),
-        today_count=Count("lessons", filter=Q(lessons__day=today)),
+        lessons_count=Count("lessons", filter=active),
+        today_count=Count("lessons", filter=active & Q(lessons__day=today)),
     )
 
 
@@ -35,7 +38,7 @@ def teacher_detail(request: HttpRequest, teacher_id: int) -> HttpResponse:
     """Страница преподавателя (teacher_id — первичный ключ записи)."""
     teacher = get_object_or_404(teachers_with_counts(), pk=teacher_id)
     # Обратная связь: занятия преподавателя через related_name="lessons".
-    lessons = teacher.lessons.select_related("subject", "room")
+    lessons = teacher.lessons.active().select_related("subject", "room")
     context = {
         "teacher": build_teacher_item(teacher),
         "lessons": lesson_presenters.build_lesson_items(lessons),

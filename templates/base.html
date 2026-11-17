@@ -23,6 +23,12 @@
 {% include "includes/navigation.html" %}
 
 <main class="container flex-grow-1 pb-5">
+{% if messages %}
+  {# Сообщения об успешных операциях (django.contrib.messages, ПР11). #}
+  {% for message in messages %}
+    <div class="alert alert-{% if message.level_tag == 'error' %}danger{% else %}{{ message.level_tag|default:'info' }}{% endif %}" role="alert">{{ message }}</div>
+  {% endfor %}
+{% endif %}
 {% block content %}{% endblock %}
 </main>
 

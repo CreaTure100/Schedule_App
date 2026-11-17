@@ -338,3 +338,18 @@ a:focus-visible,
   background: var(--rl-teal);
   color: #fff;
 }
+
+/* ПР11: формы создания и редактирования, изображение аудитории. */
+.entity-form {
+  max-width: 560px;
+}
+
+.entity-form .btn + .btn {
+  margin-left: 0.5rem;
+}
+
+.room-photo {
+  max-height: 280px;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}

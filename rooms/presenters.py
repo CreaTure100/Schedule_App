@@ -17,6 +17,8 @@ class RoomItem:
     today_count: int
     url: str = ""
     is_large: bool = False
+    # Адрес загруженного изображения ("" — изображения нет), ПР11.
+    image_url: str = ""
 
 
 def build_room_item(room: Room) -> RoomItem:
@@ -34,4 +36,5 @@ def build_room_item(room: Room) -> RoomItem:
         today_count=room.today_count,
         url=room.get_absolute_url(),
         is_large=room.is_large,
+        image_url=room.image.url if room.image else "",
     )

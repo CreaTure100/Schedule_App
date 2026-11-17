@@ -2,13 +2,15 @@
 
 from datetime import datetime
 
+from django.contrib import messages
 from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 
 from lessons import presenters as lesson_presenters
 from lessons.models import Lesson
 from models import DAYS
+from rooms.forms import RoomForm
 from rooms.models import Room
 from rooms.presenters import build_room_item
 
@@ -20,9 +22,11 @@ def rooms_with_counts():
     из результата (аналог LEFT JOIN): для них счётчики равны 0.
     """
     today = lesson_presenters.today_number()
+    # ПР11: отменённые занятия не считаются.
+    active = Q(lessons__status=Lesson.Status.ACTIVE)
     return Room.objects.annotate(
-        lessons_count=Count("lessons"),
-        today_count=Count("lessons", filter=Q(lessons__day=today)),
+        lessons_count=Count("lessons", filter=active),
+        today_count=Count("lessons", filter=active & Q(lessons__day=today)),
     )
 
 
@@ -36,7 +40,7 @@ def room_list(request: HttpRequest) -> HttpResponse:
 def render_room(request: HttpRequest, room: Room) -> HttpResponse:
     """Общая часть страниц аудитории: по первичному ключу и по slug."""
     # Обратная связь: занятия аудитории через related_name="lessons".
-    lessons = room.lessons.select_related("subject", "teacher")
+    lessons = room.lessons.active().select_related("subject", "teacher")
     context = {
         "room": build_room_item(room),
         "lessons": lesson_presenters.build_lesson_items(lessons),
@@ -81,7 +85,8 @@ def free_rooms(request: HttpRequest) -> HttpResponse:
                 error = "Укажите время начала в формате ЧЧ:ММ."
             else:
                 # Идентификаторы аудиторий, занятых в этот день и время.
-                busy_room_ids = Lesson.objects.at(
+                # Отменённое занятие аудиторию не занимает.
+                busy_room_ids = Lesson.objects.active().at(
                     lesson_presenters.day_number(day_name),
                     start_time,
                 ).values_list("room_id", flat=True)
@@ -99,3 +104,35 @@ def free_rooms(request: HttpRequest) -> HttpResponse:
         "error": error,
     }
     return render(request, "rooms/free_rooms.html", context)
+
+
+def room_create(request: HttpRequest) -> HttpResponse:
+    """Добавление аудитории с изображением (ПР11).
+
+    В форму передаются и request.POST, и request.FILES: без FILES
+    загруженный файл до формы не дойдёт.
+    """
+    if request.method == "POST":
+        form = RoomForm(request.POST, request.FILES)
+        if form.is_valid():
+            room = form.save()
+            messages.success(request, "Аудитория добавлена.")
+            return redirect(room)
+    else:
+        form = RoomForm()
+    return render(request, "rooms/room_form.html", {"form": form})
+
+
+def room_update(request: HttpRequest, room_id: int) -> HttpResponse:
+    """Редактирование аудитории и замена изображения (ПР11)."""
+    room = get_object_or_404(Room, pk=room_id)
+    if request.method == "POST":
+        form = RoomForm(request.POST, request.FILES, instance=room)
+        if form.is_valid():
+            room = form.save()
+            messages.success(request, "Изменения сохранены.")
+            return redirect(room)
+    else:
+        form = RoomForm(instance=room)
+    context = {"form": form, "room_id": room_id}
+    return render(request, "rooms/room_form.html", context)

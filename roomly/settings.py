@@ -120,6 +120,12 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# ПР11: загруженные пользователями файлы (фотографии аудиторий) — это
+# медиафайлы, а не статика приложения. MEDIA_ROOT — каталог на диске
+# (создаётся при первой загрузке), MEDIA_URL — префикс адреса.
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}{% if room_id %}Редактирование аудитории{% else %}Новая аудитория{% endif %} – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="page-title">{% if room_id %}Редактирование аудитории{% else %}Новая аудитория{% endif %}</h1>
+<p class="page-subtitle">Поля, отмеченные <span class="text-danger">*</span>, обязательны.</p>
+
+{# enctype="multipart/form-data" нужен для отправки файла; без него изображение не дойдёт до сервера. #}
+<form method="post" enctype="multipart/form-data" novalidate class="entity-form">
+  {% csrf_token %}
+  {% include "includes/form_fields.html" %}
+  <button type="submit" class="btn btn-roomly">{% if room_id %}Сохранить изменения{% else %}Добавить аудиторию{% endif %}</button>
+  {% if room_id %}
+    <a class="btn btn-outline-secondary" href="{% url 'rooms:detail' room_id %}">Отмена</a>
+  {% else %}
+    <a class="btn btn-outline-secondary" href="{% url 'rooms:list' %}">Отмена</a>
+  {% endif %}
+</form>
+{% endblock %}

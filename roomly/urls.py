@@ -5,6 +5,8 @@ from django.contrib import admin
 from django.contrib.staticfiles.views import serve as serve_static
 from django.urls import include, path
 
+from homepage.views import serve_media
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     # Учебный проект: статика (CSS, JS, логотип) отдаётся самим Django
@@ -12,6 +14,10 @@ urlpatterns = [
     # была видна своя страница 404. В реальном проекте статику отдаёт
     # веб-сервер (nginx) после collectstatic.
     path("static/<path:path>", serve_static, {"insecure": True}),
+    # ПР11: загруженные изображения. Помощник static() работает только
+    # при DEBUG = True, а в проекте по умолчанию DEBUG = False, поэтому,
+    # как и статику, медиафайлы отдаёт сам Django (только для учёбы).
+    path(f"{settings.MEDIA_URL.lstrip('/')}<path:path>", serve_media),
     path("lessons/", include("lessons.urls")),
     path("teachers/", include("teachers.urls")),
     path("rooms/", include("rooms.urls")),

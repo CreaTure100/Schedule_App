@@ -43,6 +43,15 @@ class Room(TimeStampedModel):
         verbose_name="Вместимость",
     )
 
+    # Фотография аудитории (ПР11). Файл хранится в MEDIA_ROOT/rooms/, а в
+    # базе сохраняется только путь к нему. Нужна библиотека Pillow.
+    image = models.ImageField(
+        upload_to="rooms/",
+        blank=True,
+        null=True,
+        verbose_name="Изображение",
+    )
+
     # Вычисляемое поле: значение считает сама база данных (GeneratedField)
     # по вместимости и хранит его в таблице (db_persist=True). Вручную
     # поле не задаётся и не редактируется. Если вместимость не указана

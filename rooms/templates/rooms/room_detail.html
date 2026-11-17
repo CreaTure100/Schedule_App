@@ -7,6 +7,12 @@
   <div class="card-body">
     <h1 class="card-title page-title">Аудитория {{ room.number }}</h1>
     <p>{% include "rooms/includes/room_status.html" %}</p>
+    {% if room.image_url %}
+      {# Загруженное изображение (ImageField); без файла — сообщение ниже. #}
+      <img class="room-photo img-fluid mb-3" src="{{ room.image_url }}" alt="Аудитория {{ room.number }}">
+    {% else %}
+      <p class="text-secondary">Изображение не загружено.</p>
+    {% endif %}
     <dl class="detail-list">
       {% if room.floor %}
         <dt>Этаж</dt>
@@ -21,7 +27,11 @@
       <dt>Занятий в расписании</dt>
       <dd>{{ lessons|length }}</dd>
     </dl>
-    <a class="btn btn-outline-secondary" href="{% url 'rooms:list' %}">← Ко всем аудиториям</a>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'rooms:list' %}">← Ко всем аудиториям</a>
+      <a class="btn btn-roomly" href="{% url 'rooms:update' room.id %}">Редактировать</a>
+      <a class="btn btn-outline-secondary" href="{% url 'lessons:create' %}?room={{ room.id }}">Добавить занятие</a>
+    </div>
   </div>
 </div>
 
