@@ -3,7 +3,7 @@
 ## Назначение
 
 Приложение предназначено для хранения, просмотра и редактирования расписания учебных занятий.
-Консольная версия приложения (ПР1–ПР3) дополнена веб-интерфейсом на Django (ПР5), страницы которого строятся с помощью системы шаблонов Django (ПР6).
+Консольная версия приложения (ПР1–ПР3) дополнена веб-интерфейсом на Django (ПР5), страницы которого строятся с помощью системы шаблонов Django (ПР6). Данные хранятся в SQLite (ПР7), а с ПР9 страницы получают их через Django ORM.
 
 Приложение позволяет:
 
@@ -21,6 +21,7 @@
 
 * Python 3.10+;
 * Django 5.2 – веб-фреймворк;
+* SQLite и Django ORM (модели, миграции, QuerySet) – хранение и получение данных;
 * HTML и система шаблонов Django (наследование, `include`, фильтры) – разметка веб-страниц;
 * CSS, JavaScript и Bootstrap 5.3 (подключён через CDN) – оформление страниц;
 * статические файлы Django (`{% static %}`) – собственный CSS, JS и логотип;
@@ -134,9 +135,11 @@
 * `/teachers/<int:teacher_id>/` – страница преподавателя и его занятия (view-функция `teacher_detail()`);
 * `/rooms/` – список аудиторий (view-функция `room_list()`);
 * `/rooms/<int:room_id>/` – страница аудитории и занятия в ней (view-функция `room_detail()`).
+* `/rooms/free/` – поиск свободных аудиторий на выбранные день и время (`free_rooms()`);
+* `/db/lessons/`, `/db/teachers/`, `/db/today/`, `/db/search/`, `/db/stats/` – страницы на ORM: фильтры, сортировка, пагинация, поиск, статистика (приложение `dbpages`).
 
 Если адрес не соответствует ни одному маршруту, обработчик `handler404` (`page_not_found()`) отображает шаблон `homepage/not_found.html` со статусом 404.
-Если объект с указанным идентификатором не найден, view-функция передаёт в шаблон `None` и возвращает `render(..., status=404)`: шаблон страницы объекта через `{% if %}` показывает сообщение «не найден».
+Если объект с указанным идентификатором не найден, `get_object_or_404()` прекращает обработку запроса, и Django возвращает ответ 404 со страницей `homepage/not_found.html`.
 
 Все страницы наследуют общий шаблон `templates/base.html`; ссылки в них формируются тегом `{% url %}` по именам маршрутов (`homepage:index`, `lessons:list`, `lessons:detail`, `teachers:list`, `teachers:detail`, `rooms:list`, `rooms:detail`).
 
@@ -240,6 +243,84 @@ sqlite> .read sql/queries.sql
 ```
 
 
+## Django ORM (ПР9)
+
+В ПР9 слой данных переведён с `sqlite3` и ручных SQL-запросов на Django ORM. Страницы, шаблоны, имена маршрутов и пользовательские сценарии сохранены; изменился только способ получения данных. Цепочка: представление → Django ORM → SQLite → объекты моделей.
+
+### Модели
+
+Проект «Система расписания занятий» не содержит сущностей User и Booking, поэтому модели построены по таблицам ПР7 (`teachers`, `rooms`, `subjects`, `lessons`):
+
+| Модель | Приложение | Поля | Связи и ограничения |
+|---|---|---|---|
+| `TimeStampedModel` (абстрактная) | `homepage` | `created_at` (`auto_now_add`), `updated_at` (`auto_now`) | таблицы не создаёт; поля наследуют все модели ниже |
+| `Teacher` | `teachers` | `full_name`, `surname`, `email` | `full_name` уникально; `email` необязателен (`blank=True`, `default=""`); `surname` заполняется в `save()` из `full_name`; сортировка по фамилии |
+| `Room` | `rooms` | `number`, `floor`, `capacity` | `number` уникален; `floor` и `capacity` необязательны (`null=True`, `blank=True`); `CheckConstraint`: вместимость пуста или больше 0 |
+| `Subject` | `lessons` | `title` | `title` уникально |
+| `Lesson` | `lessons` | `day` (число 1–6 с подписями), `start_time` (`TimeField`), `duration_hours` (по умолчанию 1.5), `lesson_type`, `subject`, `teacher`, `room` | три `ForeignKey` с `on_delete=PROTECT` и `related_name="lessons"`; `UniqueConstraint` (`day`, `start_time`, `room`) и (`day`, `start_time`, `teacher`); `CheckConstraint` на день и длительность |
+
+Обратный доступ: `teacher.lessons.all()`, `room.lessons.all()`, `subject.lessons.all()`. `PROTECT` запрещает удалять преподавателя, аудиторию или предмет, пока на них ссылаются занятия, – так же работал `ON DELETE RESTRICT` в ПР7. День недели хранится числом (удобно сортировать), название даёт `lesson.get_day_display()`. Не путать модели `models.py` Django-приложений с обычными классами пакета `models/` (ПР3).
+
+### Миграции и перенос данных
+
+Стратегия – вариант 2 из методических указаний: Django создаёт собственные таблицы в `db.sqlite3`, а исходная база ПР7 `data/roomly.sqlite` остаётся без изменений и служит источником данных.
+
+```text
+python manage.py migrate                 # создать таблицы (миграции 0001_initial в teachers, rooms, lessons)
+python -m db.inspect_source_db           # посмотреть структуру исходной базы (только чтение)
+python -m db.import_sqlite_to_orm        # перенести данные через ORM
+python manage.py makemigrations --check  # модели и миграции согласованы
+```
+
+Скрипт переноса сохраняет первичные ключи и связи, преобразует время `«ЧЧ:ММ»` в `time`, `NULL` текстовых полей в пустую строку, выполняется одной транзакцией (`transaction.atomic()`) и безопасен при повторном запуске (`update_or_create()`). Файл `db.sqlite3` исключён из Git (`.gitignore`): после клонирования таблицы создаются миграциями, данные – скриптом переноса.
+
+### ORM-запросы в проекте
+
+| Вид | Выражение | Где |
+|---|---|---|
+| Получение набора | `Lesson.objects.all()`, `.order_by()` | `dbpages/views.py`, `lessons/views.py` |
+| Получение одного объекта | `get_object_or_404(..., pk=...)` | `lessons`, `teachers`, `rooms` (страницы объектов) |
+| Фильтрация по одному условию | `filter(day=...)`, `filter(teacher_id=...)` | `dbpages.lesson_list`, `search_lessons` |
+| Фильтрация по нескольким условиям | цепочка `filter()` по дню, преподавателю, аудитории, предмету | `dbpages.lesson_list` |
+| Фильтрация по полю связанной модели | `subject__title`, `teacher__full_name`, `room__number` | `dbpages/views.py` |
+| Исключение | `Room.objects.exclude(pk__in=...)` | `rooms.free_rooms` |
+| Поиск по строке | `contains_nocase()` (`iregex`, без учёта регистра кириллицы) | `dbpages.search_lessons` |
+| Поиск по нескольким полям | `Q(...) \| Q(...)` – предмет или аудитория | `dbpages.search_lessons` |
+| Сортировка | `order_by("day", "start_time", "pk")`; поле связанной модели `teacher__surname` | `lessons`, `dbpages.lesson_list` |
+| Выбор поля сортировки | словарь `SORT_FIELDS`, неизвестное значение → `day` | `dbpages.lesson_list` |
+| Связанные объекты | `select_related("subject", "teacher", "room")` | `lessons`, `homepage`, `teachers`, `rooms` |
+| Связанные объекты | `prefetch_related(Prefetch(...))`, обратная связь `teacher.lessons` | `dbpages.teacher_list`, `teacher_detail` |
+| Сокращённый набор полей | `values()`, `values_list("room_id", flat=True)` | `dbpages/views.py`, `rooms.free_rooms` |
+| Вычисляемые поля | `annotate(F("subject__title"), Case/When)` | `dbpages.lesson_rows` |
+| Сводный показатель | `aggregate(Count, Sum, Min, Max)` | `dbpages.stats` |
+| Показатель по объектам | `annotate(Count("lessons"), Sum(...))`, `Count(..., filter=Q(...))` | `dbpages.stats`, `teachers`, `rooms` |
+| Группировка | `values("day").annotate(Count("id"))` | `dbpages.stats` |
+| Фильтр по аннотации (HAVING) | `annotate(...).filter(lessons_count__gte=2)` | `dbpages.stats` |
+| Подсчёт и проверка | `count()`, `exists()` | `homepage.index` |
+| Постраничный вывод | `Paginator(rows, 5)`, `get_page()`, `{% querystring page=... %}` | `dbpages.lesson_list` |
+
+Статистика строится от моделей `Teacher` и `Room`, поэтому преподаватели и аудитории без занятий не пропадают из результата (счётчик равен 0), – аналог `LEFT JOIN` из ПР7. Если страница не найдена, `get_object_or_404()` возвращает ответ 404 (шаблон `homepage/not_found.html`); некорректные параметры (`day`, `time`, `page`, числовые идентификаторы) не приводят к ошибке.
+
+Регистр кириллицы: `LIKE` в SQLite (и `icontains`) не различает регистр только у латиницы, поэтому для поиска по тексту используется `iregex` с `re.escape()`: Django выполняет REGEXP средствами Python.
+
+Работа через Django shell (`python manage.py shell`):
+
+```python
+from lessons.models import Lesson
+from rooms.models import Room
+
+room = Room.objects.create(number="500", floor=5, capacity=40)   # Create
+Room.objects.filter(capacity__gte=30)                            # Read
+room.capacity = 45
+room.save()                                                      # Update
+room.delete()                                                    # Delete
+lesson = Lesson.objects.select_related("room", "teacher").first()
+lesson.room.number, lesson.teacher.full_name                     # прямая связь
+lesson.teacher.lessons.count()                                   # обратная связь
+```
+
+Прежний слой `sqlite3` (`db/database.py`, `db/import_json.py`, `db/repository.py`, `db/check.py`, `sql/schema.sql`, `sql/queries.sql`) сохранён как реализация ПР7: страницы сайта его больше не используют.
+
 ## Структура проекта
 
 ```text
@@ -271,7 +352,7 @@ lesson_schedule/
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
-│   ├── models.py
+│   ├── models.py              (абстрактная TimeStampedModel)
 │   ├── tests.py
 │   ├── urls.py
 │   ├── views.py
@@ -288,11 +369,13 @@ lesson_schedule/
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
-│   ├── models.py
+│   ├── models.py              (Subject, Lesson)
+│   ├── factories.py           (тестовые данные через ORM)
 │   ├── presenters.py
 │   ├── tests.py
 │   ├── urls.py
 │   ├── views.py
+│   ├── migrations/0001_initial.py
 │   └── templates/lessons/
 │       ├── lesson_list.html
 │       ├── lesson_detail.html
@@ -301,7 +384,8 @@ lesson_schedule/
 │           └── lesson_status.html
 │
 ├── teachers/
-│   ├── (те же .py-файлы, что в lessons/, включая presenters.py)
+│   ├── (те же .py-файлы, что в lessons/; models.py – Teacher)
+│   ├── migrations/0001_initial.py
 │   └── templates/teachers/
 │       ├── teacher_list.html
 │       ├── teacher_detail.html
@@ -310,7 +394,8 @@ lesson_schedule/
 │           └── teacher_status.html
 │
 ├── rooms/
-│   ├── (те же .py-файлы, что в lessons/, включая presenters.py)
+│   ├── (те же .py-файлы, что в lessons/; models.py – Room)
+│   ├── migrations/0001_initial.py
 │   └── templates/rooms/
 │       ├── room_list.html
 │       ├── room_detail.html
@@ -326,8 +411,18 @@ lesson_schedule/
 │   ├── lesson.py
 │   └── schedule.py
 │
+├── dbpages/                   (страницы статистики и поиска на ORM)
+│
+├── db/
+│   ├── inspect_source_db.py   (ПР9: структура исходной базы)
+│   ├── import_sqlite_to_orm.py (ПР9: перенос данных в базу Django)
+│   └── (слой sqlite3 ПР7: database.py, import_json.py, repository.py, check.py)
+│
+├── sql/                       (schema.sql, queries.sql – ПР7)
+│
 ├── data/
-│   └── schedule.json
+│   ├── schedule.json
+│   └── roomly.sqlite          (исходная база ПР7)
 │
 └── tests/
     ├── test_teacher_room.py
@@ -377,11 +472,12 @@ Django-приложение, отвечающее за главную стран
 
 Django-приложение, отвечающее за занятия:
 
-* `views.py` – view-функции `lesson_list()` и `lesson_detail()`;
-* `presenters.py` – подготовка данных для шаблонов (без HTML): `LessonItem`, `DayGroup`, `build_lesson_items()`, `build_day_groups()` (группировка по дням с помощью `filter_lessons_by_day()` и `sort_lessons_by_time()` из ПР3), `today_name()`; используется также в `homepage`, `teachers` и `rooms`;
+* `views.py` – view-функции `lesson_list()` и `lesson_detail()`: запросы выполняются через ORM (`select_related()`, `get_object_or_404()`);
+* `presenters.py` – превращает объекты `Lesson` в элементы для шаблонов (без HTML и без обращений к базе): `LessonItem`, `DayGroup`, `build_lesson_items()`, `build_day_groups()`, `today_name()`, `today_number()`; используется также в `homepage`, `teachers` и `rooms`;
 * `templates/lessons/` – шаблоны списка и страницы занятия, включаемые шаблоны `lesson_card.html` (карточка) и `lesson_status.html` (бейдж дня, подключается в списках, на страницах занятия, преподавателя и аудитории);
 * `urls.py` – маршруты приложения;
-* `models.py` – Django-модели (заполняется в следующих работах).
+* `models.py` – Django-модели `Subject` и `Lesson` (ПР9), `migrations/` – миграции;
+* `factories.py` – создание тестовых данных через ORM.
 
 ### `teachers/`
 
@@ -391,7 +487,7 @@ Django-приложение, отвечающее за преподавател�
 * `presenters.py` – `TeacherItem` и функции его построения;
 * `templates/teachers/` – шаблоны списка и страницы преподавателя, включаемые шаблоны `teacher_card.html` (карточка) и `teacher_status.html`;
 * `urls.py` – маршруты приложения;
-* `models.py` – Django-модели (заполняется в следующих работах).
+* `models.py` – Django-модель `Teacher` (ПР9), `migrations/` – миграции.
 
 ### `rooms/`
 
@@ -401,7 +497,8 @@ Django-приложение, отвечающее за аудитории:
 * `presenters.py` – `RoomItem` и функции его построения;
 * `templates/rooms/` – шаблоны списка и страницы аудитории, включаемые шаблоны `room_card.html` (карточка) и `room_status.html`;
 * `urls.py` – маршруты приложения;
-* `models.py` – Django-модели (заполняется в следующих работах).
+* `models.py` – Django-модель `Room` (ПР9), `migrations/` – миграции;
+* страница `/rooms/free/` – поиск свободных аудиторий.
 
 Отдельное приложение для пользователей не создавалось: в проекте нет пользователей, а для будущей авторизации Django предоставляет встроенную модель `User` из `django.contrib.auth`.
 
@@ -414,6 +511,10 @@ Django-приложение, отвечающее за аудитории:
 * фильтры (`length`, `default`, `truncatechars`, `upper`, `date`) отвечают только за форматирование вывода, а не за бизнес-логику: данные готовятся во view и `presenters.py`.
 
 Каталог шаблонов проекта подключён в `settings.py`: `TEMPLATES["DIRS"] = [BASE_DIR / "templates"]`; шаблоны приложений находятся автоматически (`APP_DIRS = True`).
+
+### `dbpages/`
+
+Страницы раздела «Статистика» (`/db/...`), построенные на ORM: `lesson_list()` (фильтры, сортировка, пагинация), `teacher_list()`, `today_lessons()`, `search_lessons()`, `stats()`. Под таблицами показан SQL, который построил Django.
 
 ### `models/`
 
@@ -456,9 +557,11 @@ Django-приложение, отвечающее за аудитории:
 
 Команды выполняются из корня проекта: файл `data/schedule.json` ищется относительно текущей папки.
 
-Веб-версия (Django):
+Веб-версия (Django). При первом запуске создайте таблицы и перенесите данные:
 
 ```text
+python manage.py migrate
+python -m db.import_sqlite_to_orm
 python manage.py runserver
 ```
 
@@ -493,7 +596,7 @@ pytest -v
 python manage.py test
 ```
 
-Первая команда запускает тесты предметной области, хранилища и консольного меню из `tests/`, вторая – тесты веб-интерфейса.
+Первая команда запускает тесты предметной области, хранилища, консольного меню и слоя sqlite3 (ПР7) из `tests/`, вторая – тесты веб-интерфейса, моделей Django, переноса данных и страниц на ORM (используют временную тестовую базу).
 
 ## Проверка качества кода
 
@@ -532,18 +635,28 @@ git status
 ## Запуск и проверка
 
 ```text
-python -m db.import_json --replace
-python -m db.import_json          # создать базу и загрузить данные
-python -m db.check --queries      # проверить таблицы, данные и запросы
-python manage.py runserver        # открыть http://127.0.0.1:8000/db/stats/
-pytest -v                         # тесты ПР1–ПР3 и tests/test_db.py
-python manage.py test             # тесты сайта и dbpages/tests.py
-flake8 .
+python manage.py migrate                 # создать таблицы Django
+python -m db.import_sqlite_to_orm        # перенести данные из data/roomly.sqlite
+python manage.py check                   # проверка конфигурации и моделей
+python manage.py showmigrations          # миграции применены ([X])
+python manage.py makemigrations --check  # нет неописанных изменений моделей
+python manage.py runserver               # http://127.0.0.1:8000/
+pytest -v                                # тесты ПР1–ПР3 и слоя sqlite3 (ПР7)
+python manage.py test                    # тесты сайта, моделей и ORM-страниц
+flake8 . --extend-exclude=venv
 ```
 
 ## Текущее состояние и план развития
 
 
+
+Реализовано (ПР9):
+
+* Django-модели `Teacher`, `Room`, `Subject`, `Lesson` со связями `ForeignKey` (`on_delete=PROTECT`, `related_name`), ограничениями и абстрактной моделью `TimeStampedModel`;
+* миграции и перенос данных из базы ПР7 с сохранением ключей и связей;
+* все страницы сайта получают данные через ORM; прямых SQL-запросов в представлениях нет;
+* фильтрация, сортировка с белым списком полей, поиск и постраничный вывод занятий (`/db/lessons/`), поиск свободных аудиторий (`/rooms/free/`), статистика через `aggregate()` и `annotate()`;
+* тесты на временной базе Django, регистрация моделей в админке.
 
 Реализовано (ПР6):
 
@@ -567,7 +680,6 @@ flake8 .
 
 Планируется:
 
-* перенос сущностей `Lesson`, `Teacher` и `Room` в Django ORM и подключение базы данных (SQLite) вместо JSON;
 * формы добавления и удаления занятий;
 * использование отложенной логики ПР3 (`add_lesson()`, `delete_lesson()`, поиск, фильтрация по дню, сортировка);
 * фильтрация по преподавателю;

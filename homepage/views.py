@@ -4,8 +4,10 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.utils import timezone
 
-from lessons.presenters import build_lesson_items
-from roomly.data import get_schedule
+from lessons import presenters as lesson_presenters
+from lessons.models import Lesson
+from rooms.models import Room
+from teachers.models import Teacher
 
 
 def page_not_found(request: HttpRequest,
@@ -16,14 +18,18 @@ def page_not_found(request: HttpRequest,
 
 def index(request: HttpRequest) -> HttpResponse:
     """Главная: сводка по расписанию и занятия на сегодня."""
-    schedule = get_schedule()
-    lessons = build_lesson_items(schedule, schedule.lessons)
+    today_lessons = (
+        Lesson.objects
+        .filter(day=lesson_presenters.today_number())
+        .select_related("subject", "teacher", "room")
+        .order_by("start_time", "pk")
+    )
     context = {
         "today": timezone.localdate(),
-        "has_data": bool(schedule),
-        "lessons_count": len(schedule),
-        "teachers_count": len(schedule.teachers),
-        "rooms_count": len(schedule.rooms),
-        "today_lessons": [item for item in lessons if item.is_today],
+        "has_data": Lesson.objects.exists(),
+        "lessons_count": Lesson.objects.count(),
+        "teachers_count": Teacher.objects.count(),
+        "rooms_count": Room.objects.count(),
+        "today_lessons": lesson_presenters.build_lesson_items(today_lessons),
     }
     return render(request, "homepage/index.html", context)

@@ -22,7 +22,7 @@
 {% else %}
   <div class="list-group">
     <div class="list-group-item empty-state">
-      Расписание пусто. Занятия берутся из базы данных: выполните python -m db.import_json.
+      Расписание пусто. Занятия берутся из базы данных: выполните python manage.py migrate и python -m db.import_sqlite_to_orm.
     </div>
   </div>
 {% endif %}

@@ -1,4 +1,4 @@
-{# Таблица занятий (JOIN). Параметр: lessons — строки sqlite3.Row. #}
+{# Таблица занятий. Параметр: lessons — словари из values() (ПР9). #}
 <div class="table-responsive">
   <table class="table table-hover align-middle db-table">
     <thead>
@@ -15,11 +15,11 @@
       {% for item in lessons %}
         <tr>
           <td>{{ item.id }}</td>
-          <td>{{ item.day }}</td>
-          <td class="db-table__time">{{ item.start_time }}</td>
-          <td>{{ item.subject }}{% if item.lesson_type %} <span class="badge lesson-status">{{ item.lesson_type }}</span>{% endif %}</td>
-          <td>{{ item.teacher }}</td>
-          <td>{{ item.room }}</td>
+          <td>{{ item.day_name }}</td>
+          <td class="db-table__time">{{ item.start_time|time:"H:i" }}</td>
+          <td>{{ item.subject_title }}{% if item.lesson_type %} <span class="badge lesson-status">{{ item.lesson_type }}</span>{% endif %}</td>
+          <td>{{ item.teacher_name }}</td>
+          <td>{{ item.room_number }}</td>
         </tr>
       {% empty %}
         <tr>

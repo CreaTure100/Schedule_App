@@ -4,14 +4,17 @@
 
 {% block content %}
 <h1 class="page-title">Аудитории</h1>
-<p class="page-subtitle">Всего аудиторий: {{ rooms|length }}</p>
+<p class="page-subtitle">
+  Всего аудиторий: {{ rooms|length }}
+  <a class="btn btn-outline-secondary btn-sm ms-3" href="{% url 'rooms:free' %}">Найти свободную аудиторию</a>
+</p>
 
 <div class="list-group">
   {% for room in rooms %}
     {% include "rooms/includes/room_card.html" %}
   {% empty %}
     <div class="list-group-item empty-state">
-      Аудиторий пока нет: в расписании нет занятий.
+      Аудиторий пока нет: база данных пуста.
     </div>
   {% endfor %}
 </div>

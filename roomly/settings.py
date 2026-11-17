@@ -66,13 +66,16 @@ TEMPLATES = [
 WSGI_APPLICATION = 'roomly.wsgi.application'
 
 
-# База данных нужна встроенным приложениям Django (admin, auth, sessions).
+# ПР9: страницы сайта получают данные через Django ORM. Модели —
+# Teacher, Room, Subject и Lesson, структура таблиц создаётся
+# миграциями (python manage.py migrate), а данные переносятся из базы
+# ПР7 командой python -m db.import_sqlite_to_orm.
 #
-# Данные расписания лежат в отдельной базе SQLite (ПР7). Страницы сайта
-# читают её через модуль sqlite3, без Django ORM: общие страницы —
-# через roomly/data.py и db/repository.py, страницы dbpages — напрямую.
-# Исходные данные для базы — data/schedule.json (python -m db.import_json).
-SQLITE_PATH = DB_PATH
+# База Django — db.sqlite3 (см. DATABASES ниже). Исходная база ПР7
+# data/roomly.sqlite остаётся источником данных для переноса и в
+# DATABASES не подключается. Слой sqlite3 из ПР7 (пакет db/, sql/)
+# сохранён как предыдущая реализация; страницы его больше не используют.
+SQLITE_PATH = DB_PATH  # исходная база ПР7 (источник для переноса)
 
 DATABASES = {
     'default': {

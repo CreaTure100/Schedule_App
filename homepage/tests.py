@@ -1,51 +1,35 @@
 """Сквозные тесты веб-интерфейса (запуск: python manage.py test).
 
-Данные берутся из временной базы SQLite, которая создаётся импортом из
-временного JSON, поэтому тесты не зависят от настоящей базы. Часть
+Данные создаются через ORM во временной тестовой базе, которую Django
+строит из миграций, поэтому тесты не зависят от настоящей базы. Часть
 проверок относится к системе шаблонов (ПР6): наследование, include,
 статика, статус 404.
 """
 
-import json
-import os
-import tempfile
 from unittest.mock import patch
 
-from django.test import SimpleTestCase, override_settings
+from django.test import TestCase
+from django.urls import reverse
 
 import homepage.views
-from db.import_json import import_schedule
-
-DATA = [
-    {"day": "Понедельник", "time": "09:00", "subject": "Математика",
-     "teacher": "Иванов И.И.", "room": "301"},
-    {"day": "Вторник", "time": "10:00", "subject": "Физика",
-     "teacher": "Иванов И.И.", "room": "302"},
-    {"day": "Среда", "time": "11:00", "subject": "<script>alert(1)</script>",
-     "teacher": "Петров П.П.", "room": "301"},
-]
+from lessons.factories import make_lesson
+from lessons.models import Lesson
+from rooms.models import Room
+from teachers.models import Teacher
 
 
-class SiteTests(SimpleTestCase):
-    """Проверки страниц сайта на временных данных."""
+class SiteTests(TestCase):
+    """Проверки страниц сайта на тестовых данных."""
 
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.json_file = os.path.join(tmp.name, "schedule.json")
-        self.db_file = os.path.join(tmp.name, "roomly.sqlite")
-        self.load_data(DATA)
-        override = override_settings(SQLITE_PATH=self.db_file)
-        override.enable()
-        self.addCleanup(override.disable)
-
-    def load_data(self, data):
-        """Пересоздать временную базу из списка словарей data."""
-        if os.path.exists(self.db_file):
-            os.remove(self.db_file)
-        with open(self.json_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
-        import_schedule(self.json_file, self.db_file)
+    @classmethod
+    def setUpTestData(cls):
+        cls.math = make_lesson("Понедельник", "09:00", "Математика",
+                               "Иванов И.И.", "301")
+        cls.physics = make_lesson("Вторник", "10:00", "Физика",
+                                  "Иванов И.И.", "302")
+        cls.script = make_lesson("Среда", "11:00",
+                                 "<script>alert(1)</script>",
+                                 "Петров П.П.", "301")
 
     def test_index(self):
         response = self.client.get("/")
@@ -54,37 +38,48 @@ class SiteTests(SimpleTestCase):
         self.assertContains(response, "Данные загружены")
 
     def test_index_with_empty_schedule(self):
-        os.remove(self.db_file)
+        Lesson.objects.all().delete()
         self.assertContains(self.client.get("/"), "Расписание пусто")
 
     def test_lesson_list_and_detail(self):
         response = self.client.get("/lessons/")
         self.assertContains(response, "Математика")
-        self.assertContains(response, 'href="/lessons/2/"')
-        detail = self.client.get("/lessons/1/")
+        self.assertContains(
+            response, f'href="/lessons/{self.physics.pk}/"')
+        detail = self.client.get(f"/lessons/{self.math.pk}/")
         self.assertContains(detail, "Иванов И.И.")
-        self.assertContains(detail, 'href="/teachers/1/"')
-        self.assertContains(detail, 'href="/rooms/1/"')
+        self.assertContains(
+            detail, f'href="/teachers/{self.math.teacher_id}/"')
+        self.assertContains(
+            detail, f'href="/rooms/{self.math.room_id}/"')
+
+    def test_lesson_detail_shows_time_and_day_status(self):
+        # Вторник: не понедельник и не выходной, статус не зависит от даты.
+        detail = self.client.get(f"/lessons/{self.physics.pk}/")
+        self.assertContains(detail, "10:00")
+        self.assertContains(detail, "Учебный день")
 
     def test_teacher_pages(self):
         self.assertContains(self.client.get("/teachers/"), "Петров П.П.")
-        detail = self.client.get("/teachers/1/")
+        detail = self.client.get(f"/teachers/{self.math.teacher_id}/")
         self.assertContains(detail, "Математика")
         self.assertContains(detail, "Физика")
         self.assertNotContains(detail, "alert(1)")
 
     def test_room_pages(self):
         self.assertContains(self.client.get("/rooms/"), "ауд. 302")
-        detail = self.client.get("/rooms/1/")
+        detail = self.client.get(f"/rooms/{self.math.room_id}/")
         self.assertContains(detail, "Математика")
         self.assertNotContains(detail, "Физика")
 
     def test_missing_objects_return_404(self):
-        for url in ("/lessons/99/", "/lessons/0/", "/teachers/99/",
-                    "/rooms/99/"):
+        missing = Lesson.objects.order_by("-pk").first().pk + 1000
+        for url in (f"/lessons/{missing}/", "/lessons/0/",
+                    f"/teachers/{missing}/", f"/rooms/{missing}/"):
             with self.subTest(url=url):
                 response = self.client.get(url)
-                self.assertContains(response, "не найден", status_code=404)
+                self.assertEqual(response.status_code, 404)
+                self.assertTemplateUsed(response, "homepage/not_found.html")
 
     def test_unknown_url_uses_custom_404(self):
         response = self.client.get("/нет-такой-страницы/")
@@ -149,21 +144,19 @@ class SiteTests(SimpleTestCase):
         self.assertEqual(positions, sorted(positions))
 
     def test_lessons_inside_day_are_sorted_by_time(self):
-        data = [
-            {"day": "Понедельник", "time": "14:00", "subject": "Поздняя",
-             "teacher": "Иванов И.И.", "room": "301"},
-            {"day": "Вторник", "time": "09:00", "subject": "Вторничная",
-             "teacher": "Иванов И.И.", "room": "301"},
-            {"day": "Понедельник", "time": "9:00", "subject": "Ранняя",
-             "teacher": "Иванов И.И.", "room": "301"},
-        ]
-        self.load_data(data)
+        Lesson.objects.all().delete()
+        make_lesson("Понедельник", "14:00", "Поздняя",
+                    "Иванов И.И.", "301")
+        make_lesson("Вторник", "09:00", "Вторничная",
+                    "Иванов И.И.", "301")
+        make_lesson("Понедельник", "09:00", "Ранняя",
+                    "Иванов И.И.", "301")
         html = self.client.get("/lessons/").content.decode()
         self.assertLess(html.index("Ранняя"), html.index("Поздняя"))
         self.assertLess(html.index("Поздняя"), html.index("Вторничная"))
 
     def test_empty_schedule_has_no_day_groups(self):
-        os.remove(self.db_file)
+        Lesson.objects.all().delete()
         response = self.client.get("/lessons/")
         self.assertContains(response, "Расписание пусто")
         self.assertNotContains(response, "day-group__title")
@@ -183,7 +176,8 @@ class SiteTests(SimpleTestCase):
     def test_page_titles(self):
         self.assertContains(self.client.get("/"),
                             "<title>Главная – Roomly</title>")
-        self.assertContains(self.client.get("/rooms/1/"),
+        room_url = reverse("rooms:detail", args=[self.math.room_id])
+        self.assertContains(self.client.get(room_url),
                             "<title>Аудитория 301 – Roomly</title>")
 
     def test_index_today_section(self):
@@ -208,18 +202,14 @@ class SiteTests(SimpleTestCase):
         self.assertContains(teachers, "Сегодня занятий нет")
 
     def test_empty_collections(self):
-        os.remove(self.db_file)
+        Lesson.objects.all().delete()
+        Teacher.objects.all().delete()
+        Room.objects.all().delete()
         self.assertContains(self.client.get("/lessons/"), "Расписание пусто")
         self.assertContains(self.client.get("/teachers/"),
                             "Преподавателей пока нет")
         self.assertContains(self.client.get("/rooms/"),
                             "Аудиторий пока нет")
-
-    def test_missing_object_status_and_template(self):
-        response = self.client.get("/lessons/9999/")
-        self.assertEqual(response.status_code, 404)
-        self.assertTemplateUsed(response, "lessons/lesson_detail.html")
-        self.assertContains(response, "№9999", status_code=404)
 
     def test_404_handler_uses_template(self):
         response = self.client.get("/нет-такой-страницы/")
@@ -228,22 +218,25 @@ class SiteTests(SimpleTestCase):
     def test_page_helper_is_removed(self):
         self.assertFalse(hasattr(homepage.views, "page"))
 
-    def test_pages_read_database_not_json(self):
-        # JSON с другими данными не влияет на страницы: они читают базу
-        with open(self.json_file, "w", encoding="utf-8") as f:
-            json.dump([], f)
-        self.assertContains(self.client.get("/lessons/"), "Математика")
-        self.assertContains(self.client.get("/teachers/"), "Петров П.П.")
-
     def test_pages_follow_changes_in_database(self):
-        self.load_data(DATA[:1])
+        self.physics.delete()
         response = self.client.get("/lessons/")
-        self.assertContains(response, "Всего занятий: 1")
+        self.assertContains(response, "Всего занятий: 2")
         self.assertNotContains(response, "Физика")
 
-    def test_missing_database_shows_empty_schedule(self):
-        os.remove(self.db_file)
+    def test_empty_database_pages_do_not_fail(self):
+        Lesson.objects.all().delete()
         for url in ("/", "/lessons/", "/teachers/", "/rooms/"):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 200)
-        self.assertFalse(os.path.exists(self.db_file))
+
+    def test_list_pages_use_constant_number_of_queries(self):
+        # select_related() и annotate() не дают запросов на каждую строку.
+        with self.assertNumQueries(1):
+            self.client.get("/lessons/")
+        with self.assertNumQueries(1):
+            self.client.get("/teachers/")
+        with self.assertNumQueries(1):
+            self.client.get("/rooms/")
+        with self.assertNumQueries(1):
+            self.client.get(f"/lessons/{self.math.pk}/")

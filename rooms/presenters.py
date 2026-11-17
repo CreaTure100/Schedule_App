@@ -1,9 +1,8 @@
-"""Подготовка данных аудиторий для шаблонов (без HTML)."""
+"""Подготовка данных аудиторий для шаблонов (без HTML и без SQL)."""
 
 from dataclasses import dataclass
 
-from lessons.presenters import today_name
-from models import Room, Schedule
+from rooms.models import Room
 
 
 @dataclass(frozen=True)
@@ -12,26 +11,23 @@ class RoomItem:
 
     id: int
     number: str
+    floor: int | None
+    capacity: int | None
     lessons_count: int
     today_count: int
 
 
-def build_room_item(schedule: Schedule, room: Room,
-                    today: str | None = None) -> RoomItem:
-    """Собрать RoomItem: ID, номер, число занятий и занятий сегодня."""
-    if today is None:
-        today = today_name()
-    lessons = schedule.lessons_in_room(room)
+def build_room_item(room: Room) -> RoomItem:
+    """Собрать RoomItem из аудитории с аннотациями ORM.
+
+    Объект должен быть получен запросом с annotate(lessons_count=...,
+    today_count=...): число занятий считает база данных (Count).
+    """
     return RoomItem(
-        id=schedule.room_id(room),
+        id=room.pk,
         number=room.number,
-        lessons_count=len(lessons),
-        today_count=sum(1 for item in lessons if item.is_on_day(today)),
+        floor=room.floor,
+        capacity=room.capacity,
+        lessons_count=room.lessons_count,
+        today_count=room.today_count,
     )
-
-
-def build_room_items(schedule: Schedule) -> list[RoomItem]:
-    """RoomItem для всех аудиторий расписания."""
-    today = today_name()
-    return [build_room_item(schedule, room, today)
-            for room in schedule.rooms]

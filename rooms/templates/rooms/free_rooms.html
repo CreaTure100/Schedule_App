@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Свободные аудитории – Roomly{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Свободные аудитории</h1>
+<p class="page-subtitle">Выберите день недели и время начала занятия: будут показаны аудитории, в которых в это время ничего не начинается.</p>
+
+<form class="row g-3 mb-4" method="get" action="{% url 'rooms:free' %}">
+  <div class="col-md-4">
+    <label class="form-label" for="free-day">День недели</label>
+    <select class="form-select" id="free-day" name="day">
+      <option value="">Выберите день</option>
+      {% for name in days %}
+        <option value="{{ name }}"{% if name == day %} selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label" for="free-time">Время начала</label>
+    <input class="form-control" id="free-time" type="time" name="time" value="{{ time }}">
+  </div>
+  <div class="col-md-4 d-flex align-items-end gap-2">
+    <button class="btn btn-roomly" type="submit">Найти</button>
+    <a class="btn btn-outline-secondary" href="{% url 'rooms:free' %}">Сбросить</a>
+  </div>
+</form>
+
+{% if error %}
+  <div class="alert alert-warning" role="alert">{{ error }}</div>
+{% elif searched %}
+  <h2 class="section-title">{{ day }}, {{ time }}</h2>
+  <div class="list-group">
+    {% for room in rooms %}
+      <a class="list-group-item list-group-item-action room-card" href="{% url 'rooms:detail' room.pk %}">
+        <span>
+          <strong>ауд. {{ room.number }}</strong><br>
+          <small class="text-secondary">
+            {% if room.floor %}Этаж {{ room.floor }}{% else %}Этаж не указан{% endif %}{% if room.capacity %}, мест: {{ room.capacity }}{% endif %}
+          </small>
+        </span>
+        <span class="badge booking-status booking-status--free">Свободна</span>
+      </a>
+    {% empty %}
+      <div class="list-group-item empty-state">В это время свободных аудиторий нет.</div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="list-group">
+    <div class="list-group-item empty-state">Задайте день и время и нажмите «Найти».</div>
+  </div>
+{% endif %}
+{% endblock %}
