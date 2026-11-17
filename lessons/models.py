@@ -45,8 +45,55 @@ class Subject(TimeStampedModel):
         verbose_name_plural = "Предметы"
 
 
+class LessonQuerySet(models.QuerySet):
+    """Повторно используемые условия отбора занятий (ПР10).
+
+    Методы возвращают QuerySet, поэтому их можно соединять цепочкой:
+    Lesson.objects.on_day(1).laboratory().with_related(). Те же методы
+    доступны и через обратные связи (room.lessons.on_day(2)).
+    """
+
+    def on_day(self, day_number):
+        """Занятия указанного дня недели (1 — понедельник … 6)."""
+        return self.filter(day=day_number)
+
+    def for_teacher(self, teacher_id):
+        """Занятия одного преподавателя."""
+        return self.filter(teacher_id=teacher_id)
+
+    def for_room(self, room_id):
+        """Занятия в одной аудитории."""
+        return self.filter(room_id=room_id)
+
+    def at(self, day_number, start_time):
+        """Занятия, начинающиеся в указанный день и время."""
+        return self.filter(day=day_number, start_time=start_time)
+
+    def laboratory(self):
+        """Лабораторные занятия."""
+        return self.filter(lesson_type=Lesson.LessonType.LABORATORY)
+
+    def regular(self):
+        """Занятия без указанного типа."""
+        return self.filter(lesson_type="")
+
+    def with_related(self):
+        """Предмет, преподаватель и аудитория одним запросом (JOIN)."""
+        return self.select_related("subject", "teacher", "room")
+
+
 class Lesson(TimeStampedModel):
     """Занятие: день, время, предмет, преподаватель и аудитория."""
+
+    class LessonType(models.TextChoices):
+        """Тип занятия: в базе хранится код, на страницах — название."""
+
+        LABORATORY = "лабораторная", "Лабораторная"
+        LECTURE = "лекция", "Лекция"
+        PRACTICE = "практика", "Практика"
+
+    # Менеджер с методами LessonQuerySet: Lesson.objects.on_day(1).
+    objects = LessonQuerySet.as_manager()
 
     # on_delete=PROTECT запрещает удалять предмет, преподавателя или
     # аудиторию, пока на них ссылаются занятия (как ON DELETE RESTRICT
@@ -87,10 +134,13 @@ class Lesson(TimeStampedModel):
     )
 
     # Тип занятия («лабораторная»); пустая строка — обычное занятие.
+    # choices задают допустимые значения в формах и Django Admin; в базе
+    # остаётся тот же текст, поэтому данные переносить не нужно.
     lesson_type = models.CharField(
         max_length=50,
         blank=True,
         default="",
+        choices=LessonType.choices,
         verbose_name="Тип занятия",
     )
 
