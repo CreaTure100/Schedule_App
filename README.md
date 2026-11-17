@@ -3,7 +3,7 @@
 ## Назначение
 
 Приложение предназначено для хранения, просмотра и редактирования расписания учебных занятий.
-Консольная версия приложения (ПР1–ПР3) дополнена веб-интерфейсом на Django (ПР5), страницы которого строятся с помощью системы шаблонов Django (ПР6). Данные хранятся в SQLite (ПР7), а с ПР9 страницы получают их через Django ORM.
+Консольная версия приложения (ПР1–ПР3) дополнена веб-интерфейсом на Django (ПР5), страницы которого строятся с помощью системы шаблонов Django (ПР6). Данные хранятся в SQLite (ПР7), с ПР9 страницы получают их через Django ORM, а с ПР10 данными можно управлять через административную панель Django (`/admin/`).
 
 Приложение позволяет:
 
@@ -134,7 +134,9 @@
 * `/teachers/` – список преподавателей (view-функция `teacher_list()`);
 * `/teachers/<int:teacher_id>/` – страница преподавателя и его занятия (view-функция `teacher_detail()`);
 * `/rooms/` – список аудиторий (view-функция `room_list()`);
-* `/rooms/<int:room_id>/` – страница аудитории и занятия в ней (view-функция `room_detail()`).
+* `/rooms/<int:room_id>/` – страница аудитории и занятия в ней (view-функция `room_detail()`);
+* `/rooms/<slug:slug>/` – та же страница по slug, например `/rooms/auditoriya-301-1/` (ПР10, `room_detail_by_slug()`, имя маршрута `rooms:slug_detail`);
+* `/admin/` – административная панель Django (ПР10).
 * `/rooms/free/` – поиск свободных аудиторий на выбранные день и время (`free_rooms()`);
 * `/db/lessons/`, `/db/teachers/`, `/db/today/`, `/db/search/`, `/db/stats/` – страницы на ORM: фильтры, сортировка, пагинация, поиск, статистика (приложение `dbpages`).
 
@@ -395,7 +397,9 @@ lesson_schedule/
 │
 ├── rooms/
 │   ├── (те же .py-файлы, что в lessons/; models.py – Room)
-│   ├── migrations/0001_initial.py
+│   ├── slugs.py               (ПР10: slug аудитории)
+│   ├── context_processors.py  (ПР10: room_context)
+│   ├── migrations/            (0001–0005: таблица, slug, is_large)
 │   └── templates/rooms/
 │       ├── room_list.html
 │       ├── room_detail.html
@@ -497,7 +501,10 @@ Django-приложение, отвечающее за аудитории:
 * `presenters.py` – `RoomItem` и функции его построения;
 * `templates/rooms/` – шаблоны списка и страницы аудитории, включаемые шаблоны `room_card.html` (карточка) и `room_status.html`;
 * `urls.py` – маршруты приложения;
-* `models.py` – Django-модель `Room` (ПР9), `migrations/` – миграции;
+* `models.py` – Django-модель `Room` (ПР9; ПР10: `slug`, `get_absolute_url()`, `GeneratedField` `is_large`), `migrations/` – миграции;
+* `slugs.py` – транслитерация и построение slug (ПР10);
+* `context_processors.py` – контекстный процессор `room_context` (ПР10);
+* `admin.py` – `RoomAdmin` и inline занятий (ПР10);
 * страница `/rooms/free/` – поиск свободных аудиторий.
 
 Отдельное приложение для пользователей не создавалось: в проекте нет пользователей, а для будущей авторизации Django предоставляет встроенную модель `User` из `django.contrib.auth`.
@@ -614,7 +621,8 @@ flake8 .
 
 * `Django>=5.2,<6.0` – веб-фреймворк;
 * `pytest>=8.0` – автоматизированные тесты;
-* `flake8>=7.0` – проверка качества кода.
+* `flake8>=7.0` – проверка качества кода;
+* `django-debug-toolbar>=4.4` – панель анализа SQL-запросов (ПР10, необязательна: без неё сайт и тесты работают).
 
 Установка:
 
@@ -646,7 +654,68 @@ python manage.py test                    # тесты сайта, моделей
 flake8 . --extend-exclude=venv
 ```
 
+## Административная панель и ORM (ПР10)
+
+Предметная область проекта – расписание, поэтому сущности методички (помещение, пользователь, бронирование) соответствуют так: `Room` → аудитория (`rooms.Room`), «пользователь» → преподаватель (`teachers.Teacher`), `Booking` → занятие (`lessons.Lesson`; предмет вынесен в справочник `lessons.Subject`). Статусы бронирований заменены типом занятия (`Lesson.LessonType`), «активное бронирование» – занятие в расписании.
+
+### Django Admin (`/admin/`)
+
+Суперпользователь создаётся командой `python manage.py createsuperuser` (учётная запись Django, не преподаватель предметной области).
+
+| Модель | Настройки `ModelAdmin` |
+| --- | --- |
+| `Room` | `list_display` (номер, этаж, вместимость, большая, число занятий, slug), `list_display_links`, `list_editable` (вместимость прямо в списке), `list_filter` (этаж, большая), `search_fields`, `ordering`, `list_per_page`, `readonly_fields` (`is_large`, `slug`, даты), inline занятий аудитории, ссылка «Смотреть на сайте» через `get_absolute_url()` |
+| `Teacher` | список с числом занятий (`annotate(Count)` + `admin.display`), поиск по ФИО, фамилии и почте, inline занятий преподавателя |
+| `Subject` | список с числом занятий, поиск по названию |
+| `Lesson` | `list_filter` (день, тип, аудитория, преподаватель), поиск по полям связанных моделей (`subject__title`, `teacher__full_name`, `room__number`), `list_select_related`, `autocomplete_fields`, массовые действия «Отметить как лабораторные» и «Сбросить тип» |
+
+Названия приложений заданы `verbose_name` в `AppConfig`, моделей и полей – в `verbose_name` моделей, язык интерфейса – `LANGUAGE_CODE = "ru-RU"`; заголовки панели – в `homepage/admin.py`.
+
+Админка не заменяет бизнес-правила: конфликт «аудитория/преподаватель + день + время» запрещён ограничениями `UniqueConstraint` модели `Lesson`, поэтому форма админки покажет ошибку, а не сохранит дубликат.
+
+### Изменения моделей и миграции
+
+* `Room.slug` (`SlugField`, уникальный, создаётся в `save()` как `auditoriya-<номер латиницей>-<pk>`) и `Room.get_absolute_url()`; миграции `rooms/0002` (поле), `0003` (заполнение slug у существующих аудиторий), `0004` (уникальность);
+* `Room.is_large` – `GeneratedField`: база сама вычисляет признак «вместимость ≥ 50» (`db_persist=True`), миграция `rooms/0005`;
+* `Lesson.LessonType` (`TextChoices`: лабораторная, лекция, практика) – миграция `lessons/0002` меняет только список допустимых значений, существующие записи не преобразуются, так как в базе остаются те же строки;
+* `LessonQuerySet` / менеджер `Lesson.objects`: `on_day()`, `for_teacher()`, `for_room()`, `at()`, `laboratory()`, `regular()`, `with_related()` – используются в представлениях вместо повторяющихся `filter()`/`select_related()`.
+
+### Контекстный процессор
+
+`rooms.context_processors.room_context` добавляет во все шаблоны `site_name` и `rooms_total` (выводятся в подвале `base.html`), зарегистрирован в `TEMPLATES` в `settings.py`. Он выполняет один `SELECT COUNT(*)` на страницу.
+
+### Django Debug Toolbar
+
+Панель подключается в `settings.py` только при `ROOMLY_DEBUG=1` и если пакет установлен:
+
+```text
+pip install django-debug-toolbar
+set ROOMLY_DEBUG=1          (PowerShell: $env:ROOMLY_DEBUG = "1")
+python manage.py runserver
+```
+
+На страницах появляется панель с вкладкой SQL (маршруты `__debug__/` подключаются в `roomly/urls.py`). Ожидаемое число запросов: списки занятий, преподавателей и аудиторий – 1 запрос данных + 1 запрос `COUNT(*)` процессора; `/db/lessons/` – запрос `COUNT(*)` пагинатора + запрос текущей страницы (связанные поля берутся одним запросом через `annotate(F(...))` + `values()`, `select_related()` не нужен).
+
+### Проверка
+
+```text
+python manage.py check
+python manage.py makemigrations --check
+python manage.py migrate
+python manage.py test
+pytest -v
+```
+
+Подробности проверки и сопоставление с чек-листом – в `REPORT_PR10.md`.
+
 ## Текущее состояние и план развития
+
+Реализовано (ПР10):
+
+* настроена административная панель (`Room`, `Teacher`, `Subject`, `Lesson`) с русскоязычными названиями, поиском, фильтрами, сортировкой, inline-таблицами и массовыми действиями;
+* slug и `get_absolute_url()` аудиторий, `GeneratedField` `is_large`, `TextChoices` типа занятия, `LessonQuerySet`;
+* контекстный процессор `room_context`, подключение Django Debug Toolbar, статистика по типам занятий;
+* тесты админки, slug, вычисляемого поля, менеджера и процессора.
 
 
 
