@@ -6,48 +6,18 @@
 <h1 class="page-title">Занятия из базы данных</h1>
 <p class="page-subtitle">Запрос Django ORM: filter(), order_by(), annotate(), values() и Paginator. Найдено занятий: {{ total }}</p>
 
-<form class="row g-3 mb-4" method="get" action="{% url 'dbpages:lessons' %}">
-  <div class="col-md-3">
-    <label class="form-label" for="f-day">День недели</label>
-    <select class="form-select" id="f-day" name="day">
-      <option value="">Любой</option>
-      {% for name in days %}
-        <option value="{{ name }}"{% if name == day %} selected{% endif %}>{{ name }}</option>
+{# Форма фильтрации (LessonFilterForm): каждое поле выводится отдельно, ошибки — рядом с полем. GET-форме CSRF-токен не нужен. #}
+<form class="row g-3 mb-4" method="get" action="{% url 'dbpages:lessons' %}" novalidate>
+  {% for field in form %}
+    <div class="col-md-3">
+      <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% for error in field.errors %}
+        <div class="invalid-feedback d-block">{{ error }}</div>
       {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-3">
-    <label class="form-label" for="f-teacher">Преподаватель</label>
-    <select class="form-select" id="f-teacher" name="teacher">
-      <option value="">Все преподаватели</option>
-      {% for item in teachers %}
-        <option value="{{ item.pk }}"{% if selected_teacher == item.pk|stringformat:"s" %} selected{% endif %}>{{ item.full_name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-3">
-    <label class="form-label" for="f-room">Аудитория</label>
-    <select class="form-select" id="f-room" name="room">
-      <option value="">Все аудитории</option>
-      {% for item in rooms %}
-        <option value="{{ item.pk }}"{% if selected_room == item.pk|stringformat:"s" %} selected{% endif %}>ауд. {{ item.number }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-3">
-    <label class="form-label" for="f-q">Предмет</label>
-    <input class="form-control" id="f-q" type="search" name="q" value="{{ q }}" placeholder="Например, физика">
-  </div>
-  <div class="col-md-3">
-    <label class="form-label" for="f-sort">Сортировать по</label>
-    <select class="form-select" id="f-sort" name="sort">
-      <option value="day"{% if sort == "day" %} selected{% endif %}>Дню и времени</option>
-      <option value="subject"{% if sort == "subject" %} selected{% endif %}>Предмету</option>
-      <option value="teacher"{% if sort == "teacher" %} selected{% endif %}>Преподавателю</option>
-      <option value="room"{% if sort == "room" %} selected{% endif %}>Аудитории</option>
-    </select>
-  </div>
-  <div class="col-md-9 d-flex align-items-end gap-2">
+    </div>
+  {% endfor %}
+  <div class="col-md-3 d-flex align-items-end gap-2">
     <button class="btn btn-roomly" type="submit">Найти</button>
     <a class="btn btn-outline-secondary" href="{% url 'dbpages:lessons' %}">Сбросить</a>
   </div>

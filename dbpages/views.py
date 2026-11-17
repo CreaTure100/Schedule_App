@@ -4,6 +4,9 @@
 представление строит запрос методами ORM (filter, exclude, annotate,
 aggregate, order_by, values, Paginator), а SQL формирует сам Django.
 Текст SQL выводится на страницах для самопроверки (sql_of()).
+
+В ПР11 фильтры списка занятий (/db/lessons/) получает и проверяет форма
+LessonFilterForm (dbpages/forms.py) вместо ручного чтения request.GET.
 """
 
 import re
@@ -14,6 +17,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.utils import timezone
 
+from dbpages.forms import LessonFilterForm
 from lessons.models import DAY_NAME, Lesson
 from lessons.presenters import day_number
 from models import DAYS
@@ -80,58 +84,56 @@ def lesson_rows(queryset):
     )
 
 
-def parse_id(text: str) -> int | None:
-    """Целое число из параметра запроса или None, если это не число."""
-    if text.isascii() and text.isdigit() and len(text) <= 9:
-        return int(text)
-    return None
-
-
 def lesson_list(request: HttpRequest) -> HttpResponse:
-    """Все занятия: фильтры, сортировка и постраничный вывод."""
-    day_name = request.GET.get("day", "").strip()
-    teacher_id = request.GET.get("teacher", "").strip()
-    room_id = request.GET.get("room", "").strip()
-    query = request.GET.get("q", "").strip()
-    sort = request.GET.get("sort", "day")
-    if sort not in SORT_FIELDS:
-        sort = "day"
-    error = None
+    """Проводимые занятия: фильтры (форма Django), сортировка, страницы."""
+    # Форма получает GET-параметры. Без параметров request.GET пуст, и
+    # создаётся несвязанная форма (is_bound = False).
+    form = LessonFilterForm(request.GET or None)
+    form_valid = form.is_bound and form.is_valid()
 
-    lessons = Lesson.objects.all()
+    # Значения по умолчанию: если форма не прошла проверку, фильтрация
+    # по непроверенным данным не выполняется.
+    day_name, teacher, room, query, sort = "", None, None, "", "day"
+    error = None
+    if form_valid:
+        # cleaned_data доступен только после успешной проверки: в нём
+        # уже объекты Teacher и Room, а не строки из адресной строки.
+        day_name = form.cleaned_data["day"]
+        teacher = form.cleaned_data["teacher"]
+        room = form.cleaned_data["room"]
+        query = form.cleaned_data["q"]
+        sort = form.cleaned_data["sort"] or "day"
+    elif form.is_bound:
+        error = "Проверьте корректность параметров фильтрации."
+
+    # Исходная выборка — только проводимые занятия через active():
+    # отменённые занятия в список не попадают (ПР11).
+    lessons = Lesson.objects.active()
 
     # Фильтры применяются по очереди и объединяются по «И».
     if day_name:
-        if day_name in DAYS:
-            lessons = lessons.on_day(day_number(day_name))
-        else:
-            error = "Выберите день недели из списка."
-    teacher_pk, room_pk = parse_id(teacher_id), parse_id(room_id)
-    if teacher_pk is not None:
-        lessons = lessons.for_teacher(teacher_pk)
-    if room_pk is not None:
-        lessons = lessons.for_room(room_pk)
+        lessons = lessons.on_day(day_number(day_name))
+    if teacher:
+        lessons = lessons.for_teacher(teacher.pk)
+    if room:
+        lessons = lessons.for_room(room.pk)
     if query:
         # Фильтрация по полю связанной модели (subject__title).
         lessons = lessons.filter(contains_nocase("subject__title", query))
 
+    # Имя поля сортировки берётся только из белого списка SORT_FIELDS.
     rows = lesson_rows(lessons.order_by(*SORT_FIELDS[sort], "pk"))
 
-    # Пагинация применяется после фильтрации и сортировки.
+    # Пагинация применяется после фильтрации и сортировки. Номер страницы
+    # не относится к условиям фильтрации, поэтому читается из request.GET.
     paginator = Paginator(rows, PAGE_SIZE)
     page_obj = paginator.get_page(request.GET.get("page"))
 
     context = {
+        "form": form,
         "lessons": page_obj,
         "page_obj": page_obj,
         "total": paginator.count,
-        "days": DAYS,
-        "teachers": Teacher.objects.order_by("surname", "full_name"),
-        "rooms": Room.objects.order_by("number"),
-        "day": day_name,
-        "selected_teacher": teacher_id,
-        "selected_room": room_id,
-        "q": query,
         "sort": sort,
         "error": error,
         "sql": sql_of(rows),
@@ -149,7 +151,7 @@ def teacher_list(request: HttpRequest) -> HttpResponse:
         .order_by("surname", "full_name")
         .prefetch_related(Prefetch(
             "lessons",
-            queryset=Lesson.objects.select_related("subject"),
+            queryset=Lesson.objects.active().select_related("subject"),
         ))
     )
     rows = [
@@ -176,6 +178,7 @@ def today_lessons(request: HttpRequest) -> HttpResponse:
     # В воскресенье day=7: такого значения в базе нет, список пуст.
     rows = lesson_rows(
         Lesson.objects
+        .active()
         .on_day(weekday)
         .filter(start_time__gte=now_time)
         .order_by("start_time", "pk")
@@ -200,7 +203,7 @@ def search_lessons(request: HttpRequest) -> HttpResponse:
 
     rows, sql = [], ""
     if searched:
-        lessons = Lesson.objects.all()
+        lessons = Lesson.objects.active()
         if day_name:
             lessons = lessons.on_day(day_number(day_name))
         if teacher:
@@ -230,7 +233,7 @@ def search_lessons(request: HttpRequest) -> HttpResponse:
 def stats(request: HttpRequest) -> HttpResponse:
     """Статистика: агрегирование, аннотирование и группировка."""
     # aggregate() — один сводный результат по всей таблице занятий.
-    summary = Lesson.objects.aggregate(
+    summary = Lesson.objects.active().aggregate(
         lessons_count=Count("id"),
         teachers_count=Count("teacher", distinct=True),
         rooms_count=Count("room", distinct=True),
@@ -249,11 +252,12 @@ def stats(request: HttpRequest) -> HttpResponse:
 
     # annotate() — показатель для каждого преподавателя. Запрос строится
     # от Teacher, поэтому преподаватели без занятий тоже в списке (0).
+    active = Q(lessons__status=Lesson.Status.ACTIVE)
     by_teacher = (
         Teacher.objects
         .annotate(
-            lessons_count=Count("lessons"),
-            hours=Sum("lessons__duration_hours"),
+            lessons_count=Count("lessons", filter=active),
+            hours=Sum("lessons__duration_hours", filter=active),
         )
         .order_by("-lessons_count", "surname")
     )
@@ -261,6 +265,7 @@ def stats(request: HttpRequest) -> HttpResponse:
     # values() + annotate() — группировка (GROUP BY day).
     by_day_query = (
         Lesson.objects
+        .active()
         .values("day")
         .annotate(
             lessons_count=Count("id"),
@@ -275,7 +280,7 @@ def stats(request: HttpRequest) -> HttpResponse:
     # Фильтр по аннотации после annotate() — аналог HAVING в SQL.
     busy_rooms = (
         Room.objects
-        .annotate(lessons_count=Count("lessons"))
+        .annotate(lessons_count=Count("lessons", filter=active))
         .filter(lessons_count__gte=2)
         .order_by("-lessons_count", "number")
     )
