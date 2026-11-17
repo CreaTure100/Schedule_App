@@ -137,3 +137,64 @@ class ImportFromSourceTests(TestCase):
             counts = import_data(source)
         self.assertEqual(counts["lessons"], 2)
         self.assertEqual(Lesson.objects.count(), 2)
+
+
+class LessonQuerySetTests(TestCase):
+    """Методы LessonQuerySet и перечисление LessonType (ПР10)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.mon_lab = make_lesson("Понедельник", "09:00", "Химия",
+                                  "Иванов И.И.", "301",
+                                  lesson_type="лабораторная")
+        cls.mon = make_lesson("Понедельник", "11:00", "Физика",
+                              "Петров П.П.", "302")
+        cls.tue = make_lesson("Вторник", "09:00", "Алгебра",
+                              "Иванов И.И.", "302")
+
+    def test_on_day(self):
+        self.assertCountEqual(Lesson.objects.on_day(1),
+                              [self.mon_lab, self.mon])
+        self.assertCountEqual(Lesson.objects.on_day(2), [self.tue])
+        self.assertCountEqual(Lesson.objects.on_day(6), [])
+
+    def test_for_teacher_and_for_room(self):
+        ivanov = Teacher.objects.get(full_name="Иванов И.И.")
+        room = Room.objects.get(number="302")
+        self.assertCountEqual(Lesson.objects.for_teacher(ivanov.pk),
+                              [self.mon_lab, self.tue])
+        self.assertCountEqual(Lesson.objects.for_room(room.pk),
+                              [self.mon, self.tue])
+
+    def test_at_finds_exact_slot(self):
+        self.assertCountEqual(Lesson.objects.at(1, "09:00"), [self.mon_lab])
+        self.assertCountEqual(Lesson.objects.at(2, "11:00"), [])
+
+    def test_laboratory_and_regular(self):
+        self.assertCountEqual(Lesson.objects.laboratory(), [self.mon_lab])
+        self.assertCountEqual(Lesson.objects.regular(),
+                              [self.mon, self.tue])
+
+    def test_methods_are_chainable(self):
+        found = Lesson.objects.on_day(1).laboratory().with_related()
+        self.assertCountEqual(found, [self.mon_lab])
+
+    def test_available_through_related_manager(self):
+        room = Room.objects.get(number="302")
+        self.assertCountEqual(room.lessons.on_day(2), [self.tue])
+
+    def test_with_related_avoids_extra_queries(self):
+        with self.assertNumQueries(1):
+            for lesson in Lesson.objects.with_related():
+                str(lesson.subject), str(lesson.teacher), str(lesson.room)
+
+    def test_lesson_type_choices_and_display(self):
+        self.assertEqual(Lesson.LessonType.LABORATORY.value, "лабораторная")
+        self.assertEqual(self.mon_lab.get_lesson_type_display(),
+                         "Лабораторная")
+        self.assertEqual(self.mon.get_lesson_type_display(), "")
+
+    def test_stats_page_counts_lesson_types(self):
+        response = self.client.get("/db/stats/")
+        self.assertEqual(response.context["summary"]["laboratory_count"], 1)
+        self.assertEqual(response.context["summary"]["regular_count"], 2)

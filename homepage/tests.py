@@ -232,11 +232,13 @@ class SiteTests(TestCase):
 
     def test_list_pages_use_constant_number_of_queries(self):
         # select_related() и annotate() не дают запросов на каждую строку.
-        with self.assertNumQueries(1):
+        # Ещё один запрос — SELECT COUNT(*) контекстного процессора
+        # room_context (ПР10), общий для всех страниц с base.html.
+        with self.assertNumQueries(2):
             self.client.get("/lessons/")
-        with self.assertNumQueries(1):
+        with self.assertNumQueries(2):
             self.client.get("/teachers/")
-        with self.assertNumQueries(1):
+        with self.assertNumQueries(2):
             self.client.get("/rooms/")
-        with self.assertNumQueries(1):
+        with self.assertNumQueries(2):
             self.client.get(f"/lessons/{self.math.pk}/")

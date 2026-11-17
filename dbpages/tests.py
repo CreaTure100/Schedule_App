@@ -137,7 +137,8 @@ class DbPagesTests(TestCase):
 
     def test_teacher_list_uses_two_queries(self):
         # преподаватели + занятия с предметами (prefetch_related)
-        with self.assertNumQueries(2):
+        # + COUNT(*) контекстного процессора room_context (ПР10)
+        with self.assertNumQueries(3):
             self.client.get("/db/teachers/")
 
     def test_today_shows_only_upcoming_lessons(self):
